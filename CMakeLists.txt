@@ -48,9 +48,29 @@ find_package(Threads REQUIRED)
 # Core library: order book and matching engine. No sockets, no threads, no I/O.
 # ---------------------------------------------------------------------------
 add_library(agora_core STATIC
-    src/core/order.cpp)
+    src/core/order.cpp
+    src/core/order_book.cpp
+    src/core/matching_engine.cpp
+    src/core/random_order_flow.cpp)
 target_include_directories(agora_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(agora_core PRIVATE agora_warnings)
+
+# ---------------------------------------------------------------------------
+# I/O library: command log (replay) and trade log. Stream based, no sockets.
+# ---------------------------------------------------------------------------
+add_library(agora_io STATIC
+    src/io/command_log.cpp
+    src/io/trade_log.cpp)
+target_link_libraries(agora_io PUBLIC agora_core PRIVATE agora_warnings)
+
+# ---------------------------------------------------------------------------
+# Tools
+# ---------------------------------------------------------------------------
+add_executable(agora_replay apps/replay_main.cpp)
+target_link_libraries(agora_replay PRIVATE agora_io agora_warnings)
+
+add_executable(agora_engine_bench apps/engine_bench.cpp)
+target_link_libraries(agora_engine_bench PRIVATE agora_io agora_warnings)
 
 # ---------------------------------------------------------------------------
 # Optional tiers. Targets are added as the code lands (see PLAN.md).
@@ -78,8 +98,11 @@ if(AGORA_BUILD_TESTS)
     enable_testing()
     add_executable(agora_tests
         tests/test_main.cpp
-        tests/test_order.cpp)
+        tests/test_order.cpp
+        tests/test_order_book.cpp
+        tests/test_matching_engine.cpp
+        tests/test_determinism.cpp)
     target_include_directories(agora_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    target_link_libraries(agora_tests PRIVATE agora_core agora_warnings)
+    target_link_libraries(agora_tests PRIVATE agora_io agora_warnings)
     add_test(NAME agora_tests COMMAND agora_tests)
 endif()

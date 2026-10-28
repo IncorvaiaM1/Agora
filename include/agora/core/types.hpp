@@ -25,6 +25,13 @@ using OrderId = std::uint64_t;
 /// Identifier of the trading agent (client connection) that owns an order.
 using AgentId = std::uint32_t;
 
+/// Identifier chosen by the agent for its own order, echoed back in events
+/// so the agent can match acknowledgements to the orders it sent.
+using ClientOrderId = std::uint64_t;
+
+/// Exchange-assigned trade identifier, strictly increasing.
+using TradeId = std::uint64_t;
+
 /// Monotonic sequence number assigned by the matching engine.
 /// Defines the total order of events and therefore price-time priority.
 using SequenceNumber = std::uint64_t;

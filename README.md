@@ -8,7 +8,7 @@ ECE 4122/6122 Advanced Programming Techniques, Fall 2026, custom final project.
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Week 0: build system, core types, tests. See [PLAN.md](PLAN.md) for the timeline |
+| Status | Core engine done: order book, matching engine, invariant checks, command log and replay. Next: wire protocol and sockets. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -37,8 +37,11 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 | Class | Role | Status |
 |---|---|---|
 | `Order` | One buy/sell instruction with fill state and invariants | done |
-| `OrderBook` | Price levels, price-time priority, cancels | planned |
-| `MatchingEngine` | Sequences input, matches, emits trades | planned |
+| `OrderBook` | Price levels, price-time priority, O(1) cancels, invariant checker | done |
+| `MatchingEngine` | Sequences commands, validates, matches, emits events, checks volume conservation | done |
+| `EventListener` + `ListenerFanout`, `TradeLogWriter` | Event interface; trade log CSV | done |
+| `CommandLogWriter` / `CommandLogReader` | Binary command log for exact replay | done |
+| `Rng`, `RandomOrderFlow` | Portable seeded RNG; synthetic load for tests and benchmarks | done |
 | `Session` | One client connection, one gateway thread | planned |
 | `SpscRingBuffer` / `MutexQueue` | Gateway to engine queue (compared in results) | planned |
 | `Agent` + `ZeroIntelligenceAgent`, `TrendAgent`, `ValueAgent`, `MarketMakerAgent` | Trading strategies | planned |
@@ -129,7 +132,22 @@ ctest --test-dir build --output-on-failure
 
 ## Run
 
-*Filled in as each component lands.* The intended workflow:
+### Engine tools (available now)
+
+```bash
+# Engine microbenchmark: 1M synthetic commands, throughput and per-command latency
+./build/agora_engine_bench --commands 1000000 --seed 42
+
+# Record a session's commands, then replay it with full invariant checking
+./build/agora_engine_bench --commands 200000 --seed 42 --write-commands session.bin
+./build/agora_replay session.bin --trades trades.csv --verify
+
+# Determinism: two replays of the same log give byte-identical trade logs
+./build/agora_replay session.bin --trades trades2.csv
+cmp trades.csv trades2.csv && echo identical
+```
+
+### Full system (planned)
 
 ```bash
 ./build/agora_exchange --port 9000 --seed 42           # start the exchange
@@ -144,7 +162,9 @@ ctest --test-dir build --output-on-failure
 
 ```
 include/agora/   public headers, one folder per component
-src/core/        Order, OrderBook, MatchingEngine (no I/O, fully unit tested)
+src/core/        Order, OrderBook, MatchingEngine, RandomOrderFlow (no I/O, fully unit tested)
+src/io/          command log (binary, for replay) and trade log (CSV)
+apps/            command line programs: agora_replay, agora_engine_bench
 src/net/         binary protocol, Session, gateway, market data feed   (planned)
 src/queue/       SPSC ring buffer and mutex queue                      (planned)
 src/agents/      agent strategies                                      (planned)
@@ -166,6 +186,7 @@ PLAN.md          plan and timeline
 ## Coding conventions
 
 - Prices are integer ticks, never floating point, so books compare exactly and logs reproduce byte for byte.
+- All randomness goes through `agora::Rng` (xoshiro256**), never `std::uniform_*_distribution`, whose output differs between standard libraries. Same seed gives the same trade log under GCC and Clang.
 - `src/core/` never touches sockets, threads or files; all I/O lives at the edges.
 - Every class and public function has a Doxygen comment.
 - Zero warnings under `-Wall -Wextra -Wpedantic -Wshadow -Wconversion`; enforced by `-Werror` and CI.
