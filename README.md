@@ -8,7 +8,7 @@ ECE 4122/6122 Advanced Programming Techniques, Fall 2026, custom final project.
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Core engine done: order book, matching engine, invariant checks, command log and replay. Next: wire protocol and sockets. See [PLAN.md](PLAN.md) |
+| Status | Core engine and networking done: agents trade over TCP in live and lockstep modes. Next: remaining agent strategies, latency benchmarks, market statistics. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -42,10 +42,16 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 | `EventListener` + `ListenerFanout`, `TradeLogWriter` | Event interface; trade log CSV | done |
 | `CommandLogWriter` / `CommandLogReader` | Binary command log for exact replay | done |
 | `Rng`, `RandomOrderFlow` | Portable seeded RNG; synthetic load for tests and benchmarks | done |
-| `Session` | One client connection, one gateway thread | planned |
-| `SpscRingBuffer` / `MutexQueue` | Gateway to engine queue (compared in results) | planned |
-| `Agent` + `ZeroIntelligenceAgent`, `TrendAgent`, `ValueAgent`, `MarketMakerAgent` | Trading strategies | planned |
-| `MarketDataFeed` | Broadcasts book updates and trades | planned |
+| `Socket`, `FrameReader` | RAII POSIX TCP socket; reassembles protocol frames from the byte stream | done |
+| `Session` | One client connection: identity and batched outbound buffer | done |
+| `Gateway` | Acceptor thread plus one reader thread per client | done |
+| `SpscRingBuffer` / `MutexQueue` | Lock-free ring and mutex queue (compared in result 2) | done |
+| `CommandChannel` (`SpscChannel`, `MutexChannel`) | One interface over both queues, chosen with `--queue` | done |
+| `MarketDataFeed` | Broadcasts trades and tick snapshots | done |
+| `ExchangeServer` | Engine thread; live and lockstep modes; cancel on disconnect | done |
+| `ClientConnection` | Client end of the protocol | done |
+| `Agent`, `AgentRunner`, `ZeroIntelligenceAgent` | Strategy base class with position and order bookkeeping; runner; random trader | done |
+| `TrendAgent`, `ValueAgent`, `MarketMakerAgent` | Remaining strategies | planned |
 | `PathGenerator`, `OptionPricer` | CUDA Monte Carlo engine with CPU reference | planned |
 | `DepthRenderer` | OpenGL heatmap | planned |
 
@@ -147,13 +153,40 @@ ctest --test-dir build --output-on-failure
 cmp trades.csv trades2.csv && echo identical
 ```
 
-### Full system (planned)
+### Exchange and agents (available now)
 
 ```bash
-./build/agora_exchange --port 9000 --seed 42           # start the exchange
-./scripts/run_market.sh --agents 16 --seed 42          # launch a mix of agents
-./build/agora_viewer --host 127.0.0.1 --port 9001      # optional live viewer
-./build/agora_risk --host 127.0.0.1 --port 9001        # optional live risk engine
+# One command: exchange plus 16 agent processes, lockstep mode, logs in logs/
+./scripts/run_market.sh --agents 16 --ticks 5000 --seed 42
+
+# Determinism (result 6): the same seed gives a byte-identical trade log,
+# whichever queue feeds the engine
+./scripts/run_market.sh --agents 16 --ticks 5000 --seed 42 --out logs/a --port 9000
+./scripts/run_market.sh --agents 16 --ticks 5000 --seed 42 --out logs/b --port 9001 --queue mutex
+cmp logs/a/trades.csv logs/b/trades.csv && echo identical
+
+# Any session, live ones included, replays from its command log
+./build/agora_replay logs/a/commands.bin --trades replayed.csv --verify
+cmp logs/a/trades.csv replayed.csv && echo identical
+
+# Real-time mode: orders are matched as they arrive, one tick per millisecond
+./scripts/run_market.sh --agents 16 --ticks 5000 --live --tick-ms 1
+
+# Or start the pieces by hand
+./build/agora_exchange --port 9000 --seed 42 --lockstep --agents 2 --ticks 1000 --trades trades.csv &
+./build/agora_agent --type zi --id 1 --seed 42 --port 9000 &
+./build/agora_agent --type zi --id 2 --seed 42 --port 9000
+```
+
+`agora_exchange` options: `--port`, `--bind` (default `127.0.0.1`; use `0.0.0.0` for agents on other nodes), `--queue spsc|mutex`, `--seed`, `--agents N` (wait for N agents before the first tick), `--ticks T`, `--tick-ms M` (live mode; 0 turns ticks off), `--lockstep`, `--trades`, `--commands`, `--verify`.
+
+Live mode matches orders in arrival order, which depends on the OS scheduler, so two live runs differ. Lockstep mode buffers each tick's orders until every agent has answered, then matches them in a seeded order, so runs are reproducible.
+
+### Viewer and risk engine (planned)
+
+```bash
+./build/agora_viewer --host 127.0.0.1 --port 9000      # optional live viewer
+./build/agora_risk --host 127.0.0.1 --port 9000        # optional live risk engine
 ```
 
 ---
@@ -164,10 +197,10 @@ cmp trades.csv trades2.csv && echo identical
 include/agora/   public headers, one folder per component
 src/core/        Order, OrderBook, MatchingEngine, RandomOrderFlow (no I/O, fully unit tested)
 src/io/          command log (binary, for replay) and trade log (CSV)
-apps/            command line programs: agora_replay, agora_engine_bench
-src/net/         binary protocol, Session, gateway, market data feed   (planned)
-src/queue/       SPSC ring buffer and mutex queue                      (planned)
-src/agents/      agent strategies                                      (planned)
+include/agora/queue/  SPSC ring buffer and mutex queue (header-only templates)
+src/net/         binary protocol, sockets, Session, Gateway, market data feed, exchange server
+src/agents/      Agent base class, runner and strategies
+apps/            command line programs: agora_exchange, agora_agent, agora_replay, agora_engine_bench
 src/risk/        CUDA risk engine and CPU reference                    (planned)
 src/viewer/      OpenGL depth viewer                                   (planned)
 tests/           doctest unit tests

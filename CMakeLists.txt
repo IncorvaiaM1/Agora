@@ -64,13 +64,43 @@ add_library(agora_io STATIC
 target_link_libraries(agora_io PUBLIC agora_core PRIVATE agora_warnings)
 
 # ---------------------------------------------------------------------------
-# Tools
+# Network library: wire protocol, POSIX sockets, session-to-engine queues,
+# gateway, market data feed and the exchange server. Plain BSD sockets and
+# std::thread only, so nothing extra is needed on PACE-ICE.
+# ---------------------------------------------------------------------------
+add_library(agora_net STATIC
+    src/net/protocol.cpp
+    src/net/socket.cpp
+    src/net/command_channel.cpp
+    src/net/session.cpp
+    src/net/gateway.cpp
+    src/net/market_data_feed.cpp
+    src/net/exchange_server.cpp
+    src/net/client_connection.cpp)
+target_link_libraries(agora_net PUBLIC agora_io Threads::Threads PRIVATE agora_warnings)
+
+# ---------------------------------------------------------------------------
+# Agents: strategy base class, runner and the strategies themselves.
+# ---------------------------------------------------------------------------
+add_library(agora_agents STATIC
+    src/agents/agent.cpp
+    src/agents/zero_intelligence_agent.cpp)
+target_link_libraries(agora_agents PUBLIC agora_net PRIVATE agora_warnings)
+
+# ---------------------------------------------------------------------------
+# Programs
 # ---------------------------------------------------------------------------
 add_executable(agora_replay apps/replay_main.cpp)
 target_link_libraries(agora_replay PRIVATE agora_io agora_warnings)
 
 add_executable(agora_engine_bench apps/engine_bench.cpp)
 target_link_libraries(agora_engine_bench PRIVATE agora_io agora_warnings)
+
+add_executable(agora_exchange apps/exchange_main.cpp)
+target_link_libraries(agora_exchange PRIVATE agora_net agora_warnings)
+
+add_executable(agora_agent apps/agent_main.cpp)
+target_link_libraries(agora_agent PRIVATE agora_agents agora_warnings)
 
 # ---------------------------------------------------------------------------
 # Optional tiers. Targets are added as the code lands (see PLAN.md).
@@ -101,8 +131,11 @@ if(AGORA_BUILD_TESTS)
         tests/test_order.cpp
         tests/test_order_book.cpp
         tests/test_matching_engine.cpp
-        tests/test_determinism.cpp)
+        tests/test_determinism.cpp
+        tests/test_protocol.cpp
+        tests/test_queues.cpp
+        tests/test_exchange.cpp)
     target_include_directories(agora_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    target_link_libraries(agora_tests PRIVATE agora_io agora_warnings)
+    target_link_libraries(agora_tests PRIVATE agora_agents agora_warnings)
     add_test(NAME agora_tests COMMAND agora_tests)
 endif()
