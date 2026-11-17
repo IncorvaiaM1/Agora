@@ -48,9 +48,11 @@ Second PACE-ICE run (Nov 17, commit 4befb88, same node):
 - Results 1 and 2 are not settled. SPSC improved with one client (90,781 orders/s, p50 10.8 us, against mutex 70,622 and 13.9 us) but became erratic from 4 clients up: individual repeats were either level with the mutex queue (191k at 4 clients, 249k at 16, 255k at 64) or 20 to 40 percent slower with p99 about doubled. The mutex queue was steady apart from three slow repeats.
 - Working explanation, not yet confirmed: while waiting for the next order the SPSC engine thread called `yield()`, which on a busy node gives its core away, and it is the one thread everything waits for. Changed after this run to busy-poll with a CPU pause first, and to yield and then sleep only after longer idle periods. Run 3 tests this.
 
-Left for Tier 1 (M2 on Sun Nov 22):
-1. Run 3 on PACE-ICE: `./scripts/pace_run.sh --skip-stats` (latency only, a couple of minutes). Commit `results/`.
-2. If SPSC is steady, put the final numbers in the README and the report. If it is still erratic, report that honestly as the result: the wait strategy of a lock-free queue matters more than the queue.
+Third PACE-ICE run (Nov 17, same node, with the busy-poll change): the explanation held where cores are not oversubscribed. SPSC is now steady and ahead at 1 client (87,724 against 70,692 orders/s) and at 4 (195,010 against 186,620). At 16 and 64 clients the medians are level (about 250k and 257k), but 2 of 5 SPSC repeats were still 8 to 36% slower, with 34 and 130 threads on 12 cores. No more tuning: this is the result, and it is written up in the README under "Results so far".
+
+**Tier 1 is complete (Nov 17), five days ahead of M2.** Results 1, 2, 3 and 6 have CSVs, figures and a README write-up.
+
+Next: Tier 2, the CUDA risk engine (was planned for Nov 23 to 29). CPU reference pricer first, then the cuRAND path generator, convergence against Black-Scholes, speedup, realized volatility from the tick log, VaR/ES.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 

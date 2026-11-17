@@ -73,6 +73,42 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 
 Plots and CSVs land in `results/`.
 
+### Results so far (Tier 1)
+
+Measured on PACE-ICE node `atl1-1-03-011-3-0` (Intel Xeon Platinum 8462Y+, 12 cores in the session, GCC 12.3.0); details in `results/environment.txt`. Everything below is reproduced by `./scripts/pace_run.sh`.
+
+**Results 1 and 2: throughput and round-trip latency.** Median of 5 repeats, each client keeping one order in flight, 20,000 orders per client.
+
+| Clients | SPSC orders/s | Mutex orders/s | SPSC p50 / p99 / p99.9 (us) | Mutex p50 / p99 / p99.9 (us) |
+|---|---|---|---|---|
+| 1 | 87,724 | 70,692 | 11.2 / 13.9 / 17.4 | 13.9 / 17.1 / 19.9 |
+| 4 | 195,010 | 186,620 | 17.6 / 33.6 / 38.5 | 17.8 / 34.3 / 39.2 |
+| 16 | 250,141 | 247,165 | 63.5 / 72.7 / 82.8 | 64.3 / 73.4 / 82.8 |
+| 64 | 256,972 | 256,098 | 247.9 / 277.7 / 309.7 | 248.9 / 277.3 / 307.0 |
+
+- The lock-free ring is 24% faster with one client and 4% faster with four. From 16 clients the two are within about 1%: throughput levels off near 250,000 orders/s because the single engine thread is saturated, and its time goes to socket system calls, not to the queue.
+- With 16 and 64 clients there are more threads than cores (34 and 130 on 12). There, 2 of 5 SPSC repeats ran 8 to 36% slower, with p99 up to double, while the mutex repeats stayed within 1%. A busy-polling engine thread loses more when the scheduler takes its core away than one that sleeps on a condition variable.
+- How the engine waits on the lock-free ring mattered more than the ring itself. An earlier version that called `yield()` while waiting was 20 to 40% slower in about half of all repeats from four clients up; polling with a CPU pause instead removed that at four clients.
+
+Figures: `results/latency_throughput.png`, `results/latency_percentiles.png`.
+
+**Result 3: market realism.** 5 seeds, 50,000 ticks each, lockstep mode, returns over 10-tick bars; mean over seeds, standard deviation in brackets.
+
+| Market | Excess kurtosis | Autocorrelation of squared returns at lags 1, 2, 5, 10 |
+|---|---|---|
+| Mixed: 2 market makers, 6 zero intelligence, 4 value, 4 trend | 5.87 (3.03) | 0.29, 0.19, 0.07, -0.01 |
+| 16 zero-intelligence agents | -0.04 (0.04) | 0.10, 0.02, 0.01, 0.00 |
+| Random walk of the same volatility | -0.02 (0.04) | -0.01, 0.00, -0.01, 0.00 |
+
+- The mixed market has fat tails and volatility clustering that lasts several bars; the zero-intelligence market and the random walk have neither.
+- The mixed market's price follows the fundamental value; the zero-intelligence market's does not (`results/price_path.png`).
+- Two limits of the model: mixed-market returns are positively autocorrelated at lag 1 (0.21, from the trend followers), which real markets are not, and the volatility clustering fades by lag 10, faster than in real data.
+- The value agents' position limit was raised from 2,000 to 20,000 shares after a first run in which one seed's price drifted about 560 ticks from the fundamental and then fell 270 ticks in a single step.
+
+Figures: `results/stylized_returns.png`, `results/stylized_acf.png`, `results/price_path.png`.
+
+**Result 6: correctness.** The book invariants and volume conservation are checked after every command in the tests and in `agora_replay --verify`. Two lockstep runs with the same seed give byte-identical trade logs, with either queue. The command log of any run, live ones included, replays to the same trade log. The same seeds gave the same statistics, digit for digit, under GCC 11 on Ubuntu and GCC 12 on PACE-ICE.
+
 ---
 
 ## Environment
