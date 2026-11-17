@@ -1,6 +1,6 @@
 // End-to-end tests over real TCP sockets on the loopback interface: the
 // exchange runs on one thread, clients and agents on others.
-#include "agora/agents/zero_intelligence_agent.hpp"
+#include "agora/agents/agent_factory.hpp"
 #include "agora/core/matching_engine.hpp"
 #include "agora/io/command_log.hpp"
 #include "agora/io/trade_log.hpp"
@@ -116,10 +116,11 @@ struct SessionResult
     EngineStats stats;
 };
 
-/// Runs a whole market: one exchange and @p agentCount zero-intelligence agents on threads.
-SessionResult runMarket(std::uint64_t seed, std::size_t agentCount, std::uint64_t ticks, bool lockstep,
-                        QueueKind queue)
+/// Runs a whole market: one exchange and one agent thread per entry of @p types.
+SessionResult runMarket(std::uint64_t seed, const std::vector<std::string>& types, std::uint64_t ticks,
+                        bool lockstep, QueueKind queue)
 {
+    const std::size_t agentCount = types.size();
     ExchangeConfig config;
     config.seed = seed;
     config.queue = queue;
@@ -134,11 +135,12 @@ SessionResult runMarket(std::uint64_t seed, std::size_t agentCount, std::uint64_
     for (std::size_t i = 0; i < agentCount; ++i)
     {
         agents.emplace_back(
-            [&exchange, seed, i]
+            [&exchange, &types, seed, i]
             {
-                agents::ZeroIntelligenceAgent agent(static_cast<AgentId>(i + 1), seed);
+                const std::unique_ptr<agents::Agent> agent =
+                    agents::makeAgent(types[i], static_cast<AgentId>(i + 1), seed);
                 ClientConnection connection("127.0.0.1", exchange.port());
-                agents::AgentRunner runner(agent, connection);
+                agents::AgentRunner runner(*agent, connection);
                 runner.run();
             });
     }
@@ -149,6 +151,13 @@ SessionResult runMarket(std::uint64_t seed, std::size_t agentCount, std::uint64_
     exchange.join();
     exchange.engine().verify();
     return SessionResult{exchange.trades.str(), exchange.commands.str(), exchange.engine().stats()};
+}
+
+/// Convenience overload: @p agentCount zero-intelligence agents.
+SessionResult runMarket(std::uint64_t seed, std::size_t agentCount, std::uint64_t ticks, bool lockstep,
+                        QueueKind queue)
+{
+    return runMarket(seed, std::vector<std::string>(agentCount, "zi"), ticks, lockstep, queue);
 }
 
 } // namespace
@@ -329,4 +338,15 @@ TEST_CASE("exchange: a live session replays to the same trade log (result 6)")
     const SessionResult live = runMarket(7, 4, 150, false, QueueKind::Spsc);
     CHECK(live.stats.commands > 0);
     CHECK(replay(live.commands) == live.trades);
+}
+
+TEST_CASE("exchange: a mixed market of all four strategies is deterministic in lockstep")
+{
+    const std::vector<std::string> mix = {"mm", "mm", "zi", "zi", "zi", "value", "value", "trend", "trend"};
+    const SessionResult first = runMarket(11, mix, 600, true, QueueKind::Spsc);
+    const SessionResult second = runMarket(11, mix, 600, true, QueueKind::Mutex);
+
+    CHECK(first.stats.trades > 100);
+    CHECK(first.trades == second.trades);
+    CHECK(replay(first.commands) == first.trades);
 }

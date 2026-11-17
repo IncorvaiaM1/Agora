@@ -10,6 +10,7 @@
 #include "agora/net/client_connection.hpp"
 #include "agora/net/protocol.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 
@@ -38,6 +39,7 @@ struct OpenOrder
     Side side = Side::Buy;
     Price price = 0;
     Quantity remaining = 0;
+    std::uint64_t tick = 0; ///< Tick during which the exchange accepted it (for order lifetimes).
 };
 
 /**
@@ -70,8 +72,11 @@ class Agent
     /// Short strategy name for logs ("zi", "trend", ...).
     virtual const char* name() const noexcept = 0;
 
-    /// Called once per tick with the market snapshot. Place and cancel orders through @p orders.
-    virtual void onTick(const net::Tick& tick, OrderSink& orders) = 0;
+    /// Called by AgentRunner once per tick: records the snapshot, then runs the strategy's onTick().
+    void step(const net::Tick& tick, OrderSink& orders);
+
+    /// The most recent tick snapshot (all zeros before the first tick).
+    const net::Tick& lastTick() const noexcept { return m_lastTick; }
 
     // Message entry points, called by AgentRunner. Each updates the
     // bookkeeping and then calls the matching protected hook.
@@ -97,6 +102,9 @@ class Agent
     std::uint64_t tradeCount() const noexcept { return m_tradeCount; }
 
   protected:
+    /// The strategy: called once per tick with the market snapshot. Place and cancel orders through @p orders.
+    virtual void onTick(const net::Tick& tick, OrderSink& orders) = 0;
+
     virtual void onAccepted(const net::Accepted& /*accepted*/) {}
     virtual void onRejected(const net::Rejected& /*rejected*/) {}
     virtual void onCancelled(const net::Cancelled& /*cancelled*/) {}
@@ -105,12 +113,24 @@ class Agent
 
     Rng& rng() noexcept { return m_rng; }
 
+    /**
+     * @brief Best single estimate of the current price from a tick snapshot.
+     *
+     * Mid price if both sides are quoted, otherwise the last trade price,
+     * otherwise (empty book, nothing traded yet) the fundamental value.
+     */
+    static Price referencePrice(const net::Tick& tick) noexcept;
+
+    /// Cancels every open order accepted more than @p age ticks ago. @return how many.
+    std::size_t cancelOlderThan(std::uint64_t age, OrderSink& orders) const;
+
   private:
     /// Applies a fill of @p quantity to one of our orders.
     void applyFill(OrderId orderId, Side side, Price price, Quantity quantity);
 
     const AgentId m_id;
     Rng m_rng;
+    net::Tick m_lastTick;
     std::map<OrderId, OpenOrder> m_openOrders;
     Quantity m_position = 0;
     std::int64_t m_cash = 0;

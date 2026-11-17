@@ -3,14 +3,14 @@
  * @brief agora_agent: one trading agent as its own process.
  *
  * Usage:
- *   agora_agent --id N [--type zi] [--seed S] [--host H] [--port P]
+ *   agora_agent --id N [--type zi|value|trend|mm] [--seed S] [--host H] [--port P]
  *
  * Connects to the exchange, trades until the exchange ends the session, then
  * prints one summary line. Every agent in a session should get the same
  * --seed and a different --id; the id is mixed into the seed so their random
  * streams differ.
  */
-#include "agora/agents/zero_intelligence_agent.hpp"
+#include "agora/agents/agent_factory.hpp"
 #include "agora/net/client_connection.hpp"
 
 #include <exception>
@@ -33,7 +33,8 @@ struct Options
 
 void printUsage()
 {
-    std::cerr << "usage: agora_agent --id N [--type zi] [--seed S] [--host H] [--port P]\n";
+    std::cerr << "usage: agora_agent --id N [--type " << agora::agents::kAgentTypes
+              << "] [--seed S] [--host H] [--port P]\n";
 }
 
 bool parse(int argc, char* argv[], Options& options)
@@ -71,16 +72,6 @@ bool parse(int argc, char* argv[], Options& options)
     return options.hasId;
 }
 
-/// Builds the strategy named by --type, or returns nullptr for an unknown name.
-std::unique_ptr<agora::agents::Agent> makeAgent(const Options& options)
-{
-    if (options.type == "zi")
-    {
-        return std::make_unique<agora::agents::ZeroIntelligenceAgent>(options.id, options.seed);
-    }
-    return nullptr;
-}
-
 } // namespace
 
 int main(int argc, char* argv[])
@@ -102,7 +93,8 @@ int main(int argc, char* argv[])
 
     try
     {
-        const std::unique_ptr<agora::agents::Agent> agent = makeAgent(options);
+        const std::unique_ptr<agora::agents::Agent> agent =
+            agora::agents::makeAgent(options.type, options.id, options.seed);
         if (!agent)
         {
             std::cerr << "unknown agent type: " << options.type << '\n';

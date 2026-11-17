@@ -17,15 +17,17 @@ Done:
 - Core (Oct 27 to 28): order book, matching engine, invariant and conservation checks, command log, `agora_replay`, engine benchmark.
 - Networking (Nov 16): binary wire protocol, POSIX `Socket`, `Session`, `Gateway` (one reader thread per client), `SpscRingBuffer` and `MutexQueue` behind one `CommandChannel` interface (`--queue spsc|mutex`), `MarketDataFeed`, `ExchangeServer` with live and lockstep modes, cancel on disconnect.
 - Agents (Nov 16): `Agent` base class, `AgentRunner`, `ZeroIntelligenceAgent`, `agora_agent`, `scripts/run_market.sh`.
-- 48 test cases pass (GCC 11, also under ASan + UBSan). TSan is clean on the SPSC path; on the mutex path GCC 11's libtsan reports false positives from `condition_variable::wait_for` (it does not intercept `pthread_cond_clockwait`), which disappear when the wait uses the system clock.
+- Strategies and benchmark (Nov 16): `ValueAgent`, `TrendAgent`, `MarketMakerAgent`, `--mix` in `run_market.sh`, `agora_bench_latency`, `scripts/bench.sh`.
+- 55 test cases pass (GCC 11, also under ASan + UBSan). TSan is clean on the SPSC path; on the mutex path GCC 11's libtsan reports false positives from `condition_variable::wait_for` (it does not intercept `pthread_cond_clockwait`), which disappear when the wait uses the system clock.
 
 Measured on Nov 16 (16 ZI agent processes, 5000 ticks, lockstep, seed 42): 48,302 commands and 14,975 trades in about 2 s; two runs (one per queue kind) give byte-identical trade logs; `agora_replay` of the command log reproduces the trade log, in live mode too.
 
+First look at result 3 (20,000 ticks, lockstep, seed 42, returns over 20-trade bars, quick throwaway script): the mixed market `mm:2,zi:6,value:4,trend:4` has excess kurtosis 2.5 and squared-return autocorrelation 0.16, 0.16, 0.10 at lags 1, 2, 5; 16 ZI agents alone give 1.1 and 0.15, 0.02, -0.01. So the mix shows fatter tails and volatility clustering that the baseline lacks. In the mix, market makers and value agents end with a profit and ZI and trend agents with a loss. These are one seed; `stats.py` should average over several.
+
 Left for Tier 1 (this week, M2 on Sun Nov 22):
-1. `TrendAgent`, `ValueAgent`, `MarketMakerAgent` (the `Agent` base and `--type` switch are in place).
-2. `bench_latency` client and `scripts/bench.sh`: sweep 1/4/16/64 clients for both queue kinds (results 1 and 2). Run the exchange with `--tick-ms 0`.
-3. `scripts/stats.py`: kurtosis and ACF of squared returns from `trades.csv` vs a random-walk baseline (result 3).
-4. Build and run on PACE-ICE; pin the module versions in the README.
+1. `scripts/stats.py` and `plots.py`: kurtosis and ACF of squared returns from `trades.csv` for the mix, the ZI-only market and a simulated random walk, over several seeds (result 3). Latency plots from `results/latency.csv` (results 1 and 2).
+2. Build on PACE-ICE, pin the module versions in the README, run `scripts/bench.sh` on a compute node and commit `results/latency.csv`.
+3. Optional: log the fundamental value per tick from the exchange, so the report can plot price against value.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 

@@ -14,20 +14,6 @@ ZeroIntelligenceAgent::ZeroIntelligenceAgent(AgentId id, std::uint64_t seed, Zer
 {
 }
 
-Price ZeroIntelligenceAgent::referencePrice(const net::Tick& tick) noexcept
-{
-    if (tick.bidPrice > 0 && tick.askPrice > 0)
-    {
-        return (tick.bidPrice + tick.askPrice) / 2;
-    }
-    if (tick.lastTradePrice > 0)
-    {
-        return tick.lastTradePrice;
-    }
-    // Empty book and no trades yet: the fundamental gives the market somewhere to start.
-    return tick.fundamental;
-}
-
 void ZeroIntelligenceAgent::onTick(const net::Tick& tick, OrderSink& orders)
 {
     if (!rng().chance(m_config.actProbability))

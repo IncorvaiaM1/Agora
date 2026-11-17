@@ -4,11 +4,13 @@
 
 ECE 4122/6122 Advanced Programming Techniques, Fall 2026, custom final project.
 
+The approved statement of work for this project was submitted under the working title **MarketLab**. Agora is the same project; only the name changed.
+
 | | |
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Core engine and networking done: agents trade over TCP in live and lockstep modes. Next: remaining agent strategies, latency benchmarks, market statistics. See [PLAN.md](PLAN.md) |
+| Status | Tier 1 code complete: exchange, all four agent strategies, latency benchmark. Next: market statistics script and PACE-ICE runs. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -50,8 +52,11 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 | `MarketDataFeed` | Broadcasts trades and tick snapshots | done |
 | `ExchangeServer` | Engine thread; live and lockstep modes; cancel on disconnect | done |
 | `ClientConnection` | Client end of the protocol | done |
-| `Agent`, `AgentRunner`, `ZeroIntelligenceAgent` | Strategy base class with position and order bookkeeping; runner; random trader | done |
-| `TrendAgent`, `ValueAgent`, `MarketMakerAgent` | Remaining strategies | planned |
+| `Agent`, `AgentRunner` | Strategy base class with position, cash and open-order bookkeeping; runner | done |
+| `ZeroIntelligenceAgent` | Random orders around the mid; the baseline for result 3 | done |
+| `ValueAgent` | Trades toward a noisy estimate of the fundamental value | done |
+| `TrendAgent` | Moving-average crossover momentum trader (integer arithmetic) | done |
+| `MarketMakerAgent` | Two-sided quotes with inventory skew | done |
 | `PathGenerator`, `OptionPricer` | CUDA Monte Carlo engine with CPU reference | planned |
 | `DepthRenderer` | OpenGL heatmap | planned |
 
@@ -156,8 +161,11 @@ cmp trades.csv trades2.csv && echo identical
 ### Exchange and agents (available now)
 
 ```bash
-# One command: exchange plus 16 agent processes, lockstep mode, logs in logs/
+# One command: exchange plus 16 zero-intelligence agent processes, lockstep mode, logs in logs/
 ./scripts/run_market.sh --agents 16 --ticks 5000 --seed 42
+
+# A mixed market: 2 market makers, 6 zero-intelligence, 4 value and 4 trend agents
+./scripts/run_market.sh --mix "mm:2,zi:6,value:4,trend:4" --ticks 20000 --seed 42
 
 # Determinism (result 6): the same seed gives a byte-identical trade log,
 # whichever queue feeds the engine
@@ -174,13 +182,29 @@ cmp logs/a/trades.csv replayed.csv && echo identical
 
 # Or start the pieces by hand
 ./build/agora_exchange --port 9000 --seed 42 --lockstep --agents 2 --ticks 1000 --trades trades.csv &
-./build/agora_agent --type zi --id 1 --seed 42 --port 9000 &
+./build/agora_agent --type mm --id 1 --seed 42 --port 9000 &
 ./build/agora_agent --type zi --id 2 --seed 42 --port 9000
 ```
+
+`agora_agent --type` is one of `zi`, `value`, `trend`, `mm`.
 
 `agora_exchange` options: `--port`, `--bind` (default `127.0.0.1`; use `0.0.0.0` for agents on other nodes), `--queue spsc|mutex`, `--seed`, `--agents N` (wait for N agents before the first tick), `--ticks T`, `--tick-ms M` (live mode; 0 turns ticks off), `--lockstep`, `--trades`, `--commands`, `--verify`.
 
 Live mode matches orders in arrival order, which depends on the OS scheduler, so two live runs differ. Lockstep mode buffers each tick's orders until every agent has answered, then matches them in a seeded order, so runs are reproducible.
+
+### Latency and throughput (results 1 and 2)
+
+```bash
+# Full sweep: both queues x 1/4/16/64 clients x 5 repeats, written to results/latency.csv
+./scripts/bench.sh
+
+# One measurement by hand
+./build/agora_exchange --port 9000 --queue spsc --tick-ms 0 &
+./build/agora_bench_latency --port 9000 --clients 16 --orders 20000
+kill -INT %1
+```
+
+Each benchmark client sends limit orders and times the round trip from sending an order to reading its acknowledgement. `--window W` sets how many orders a client keeps in flight: 1 (the default) gives clean latency numbers, larger values give peak throughput. Run the sweep on a quiet machine; on PACE-ICE use a compute node, not a login node.
 
 ### Viewer and risk engine (planned)
 
@@ -200,7 +224,7 @@ src/io/          command log (binary, for replay) and trade log (CSV)
 include/agora/queue/  SPSC ring buffer and mutex queue (header-only templates)
 src/net/         binary protocol, sockets, Session, Gateway, market data feed, exchange server
 src/agents/      Agent base class, runner and strategies
-apps/            command line programs: agora_exchange, agora_agent, agora_replay, agora_engine_bench
+apps/            command line programs: agora_exchange, agora_agent, agora_bench_latency, agora_replay, agora_engine_bench
 src/risk/        CUDA risk engine and CPU reference                    (planned)
 src/viewer/      OpenGL depth viewer                                   (planned)
 tests/           doctest unit tests

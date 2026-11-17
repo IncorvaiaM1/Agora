@@ -37,12 +37,11 @@ class ZeroIntelligenceAgent final : public Agent
     ZeroIntelligenceAgent(AgentId id, std::uint64_t seed, ZeroIntelligenceConfig config = {});
 
     const char* name() const noexcept override { return "zi"; }
+
+  protected:
     void onTick(const net::Tick& tick, OrderSink& orders) override;
 
   private:
-    /// Mid price if both sides are quoted, otherwise the best information available.
-    static Price referencePrice(const net::Tick& tick) noexcept;
-
     ZeroIntelligenceConfig m_config;
 };
 

@@ -11,8 +11,14 @@ namespace agora::net
 namespace
 {
 
-/// Empty polls before a waiting thread starts sleeping instead of spinning.
+/// Failed pushes before a producer facing a full ring starts sleeping instead of yielding.
 constexpr int kSpinsBeforeSleep = 200;
+
+/// Empty sweeps before the idle engine thread starts sleeping. Higher than the
+/// producer's count on purpose: under steady load the next order is usually
+/// less than a millisecond away, and a sleep would add its wake-up time to
+/// that order's latency.
+constexpr int kSweepsBeforeSleep = 2000;
 
 /// Sleep between polls once spinning has not paid off.
 constexpr std::chrono::microseconds kIdleSleep{50};
@@ -104,7 +110,7 @@ bool SpscChannel::pop(InboundMessage& message, std::chrono::microseconds wait)
         {
             return false;
         }
-        if (++spins < kSpinsBeforeSleep)
+        if (++spins < kSweepsBeforeSleep)
         {
             std::this_thread::yield();
         }

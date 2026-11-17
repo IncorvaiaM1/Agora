@@ -17,12 +17,45 @@ Agent::Agent(AgentId id, std::uint64_t seed)
 {
 }
 
+void Agent::step(const net::Tick& tick, OrderSink& orders)
+{
+    m_lastTick = tick;
+    onTick(tick, orders);
+}
+
+Price Agent::referencePrice(const net::Tick& tick) noexcept
+{
+    if (tick.bidPrice > 0 && tick.askPrice > 0)
+    {
+        return (tick.bidPrice + tick.askPrice) / 2;
+    }
+    if (tick.lastTradePrice > 0)
+    {
+        return tick.lastTradePrice;
+    }
+    return tick.fundamental;
+}
+
+std::size_t Agent::cancelOlderThan(std::uint64_t age, OrderSink& orders) const
+{
+    std::size_t cancelled = 0;
+    for (const auto& entry : m_openOrders)
+    {
+        if (m_lastTick.tick > entry.second.tick + age)
+        {
+            orders.cancel(entry.first);
+            ++cancelled;
+        }
+    }
+    return cancelled;
+}
+
 void Agent::handle(const net::Accepted& accepted)
 {
     // Track every accepted order. One that fills at once is removed again by
     // the Trade messages that follow; a market order's unfilled remainder is
     // removed by the Cancelled message that follows.
-    m_openOrders[accepted.orderId] = OpenOrder{accepted.side, accepted.price, accepted.quantity};
+    m_openOrders[accepted.orderId] = OpenOrder{accepted.side, accepted.price, accepted.quantity, m_lastTick.tick};
     onAccepted(accepted);
 }
 
@@ -113,7 +146,7 @@ RunSummary AgentRunner::run()
                 {
                     m_summary.lastPrice = received.lastTradePrice;
                     ++m_summary.ticks;
-                    m_agent.onTick(received, *this);
+                    m_agent.step(received, *this);
                     // TickDone goes out in the same write as this tick's orders.
                     m_connection.send(net::TickDone{received.tick});
                     running = m_connection.flush();

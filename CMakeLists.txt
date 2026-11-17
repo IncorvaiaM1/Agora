@@ -84,7 +84,11 @@ target_link_libraries(agora_net PUBLIC agora_io Threads::Threads PRIVATE agora_w
 # ---------------------------------------------------------------------------
 add_library(agora_agents STATIC
     src/agents/agent.cpp
-    src/agents/zero_intelligence_agent.cpp)
+    src/agents/agent_factory.cpp
+    src/agents/zero_intelligence_agent.cpp
+    src/agents/value_agent.cpp
+    src/agents/trend_agent.cpp
+    src/agents/market_maker_agent.cpp)
 target_link_libraries(agora_agents PUBLIC agora_net PRIVATE agora_warnings)
 
 # ---------------------------------------------------------------------------
@@ -101,6 +105,9 @@ target_link_libraries(agora_exchange PRIVATE agora_net agora_warnings)
 
 add_executable(agora_agent apps/agent_main.cpp)
 target_link_libraries(agora_agent PRIVATE agora_agents agora_warnings)
+
+add_executable(agora_bench_latency apps/bench_latency.cpp)
+target_link_libraries(agora_bench_latency PRIVATE agora_net agora_warnings)
 
 # ---------------------------------------------------------------------------
 # Optional tiers. Targets are added as the code lands (see PLAN.md).
@@ -134,6 +141,7 @@ if(AGORA_BUILD_TESTS)
         tests/test_determinism.cpp
         tests/test_protocol.cpp
         tests/test_queues.cpp
+        tests/test_agents.cpp
         tests/test_exchange.cpp)
     target_include_directories(agora_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
     target_link_libraries(agora_tests PRIVATE agora_agents agora_warnings)
