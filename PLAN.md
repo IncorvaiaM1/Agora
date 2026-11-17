@@ -26,9 +26,25 @@ First look at result 3 (20,000 ticks, lockstep, seed 42, returns over 20-trade b
 
 Scripts (Nov 17): exchange `--tick-log`, `scripts/stats.py`, `scripts/stylized_facts.sh`, `scripts/plots.py`, `scripts/pace_run.sh`. Trial run off PACE (3 seeds, 30,000 ticks, 10-tick bars): mixed market excess kurtosis 4.1 (std 1.4 over seeds), squared-return autocorrelation 0.24, 0.19, 0.08 at lags 1, 2, 5; ZI-only and random walk both about 0 kurtosis. The mixed market tracks the fundamental; the ZI market does not. One thing to state honestly in the report: mixed-market returns themselves are positively autocorrelated at lag 1 (about 0.22, from the trend followers), which real markets are not.
 
+First PACE-ICE run (Nov 17, commit 428d44a, node atl1-1-03-011-3-0, Xeon Platinum 8462Y+, 12 cores, GCC 12.3.0). All tests passed there.
+
+- Results 1 and 2 (medians of 5 repeats, one order in flight per client):
+
+  | Clients | SPSC orders/s | Mutex orders/s | SPSC p50 / p99 / p99.9 (us) | Mutex p50 / p99 / p99.9 (us) |
+  |---|---|---|---|---|
+  | 1 | 78,858 | 70,386 | 12.3 / 15.3 / 18.7 | 14.0 / 17.3 / 20.4 |
+  | 4 | 173,229 | 187,881 | 18.9 / 37.5 / 42.1 | 17.7 / 34.1 / 39.0 |
+  | 16 | 242,916 | 247,942 | 65.4 / 75.1 / 86.3 | 64.1 / 73.4 / 84.1 |
+  | 64 | 254,861 | 256,951 | 250.0 / 280.2 / 308.7 | 248.1 / 277.5 / 308.2 |
+
+  The lock-free queue wins by about 12% with one client and is level with or slightly behind the mutex queue from 4 clients up. Throughput flattens near 250,000 orders/s from 16 clients: the single engine thread is the limit, and its time goes to socket system calls, not to the queue. That is the finding for result 2, and it is a legitimate one.
+- One cause of the SPSC queue trailing at 4 clients was mine: the engine polled all 128 session rings on every pop, used or not. Fixed after this run (it now polls only slots that have had a client), so the next run may move the SPSC numbers.
+- Result 3: seeds 1, 2, 3 and 5 gave excess kurtosis 2.4 to 6.1, but seed 4 gave 953. Cause: the fundamental fell about 600 ticks, the four value agents hit their 2,000-share position limit, the price stayed about 560 ticks too high, and then fell 270 ticks in one step when the bids ran out. Fixed after this run by raising the value agents' limit to 20,000 shares. With that, a local rerun of the five seeds gives excess kurtosis 5.9 (std 3.0, range 2.8 to 11.5) and squared-return autocorrelation 0.29, 0.19, 0.07 at lags 1, 2, 5.
+- The same seed produced identical statistics on PACE-ICE (GCC 12) and on Ubuntu (GCC 11).
+
 Left for Tier 1 (M2 on Sun Nov 22):
-1. On PACE-ICE, in an interactive session on a compute node: `./scripts/pace_run.sh --quick`, then `./scripts/pace_run.sh`. Commit `results/`.
-2. Copy the node, compiler and CMake lines from `results/environment.txt` into the README environment table.
+1. Rerun `./scripts/pace_run.sh` on PACE-ICE with the two fixes above and commit `results/`. Ask for more cores if possible (the 64-client point runs about 130 threads on 12 cores).
+2. Put the final numbers in the README and the report.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 

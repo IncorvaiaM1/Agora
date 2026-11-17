@@ -1,2 +1,5 @@
 # Shell scripts must keep Unix line endings, or bash on Linux and PACE-ICE refuses to run them.
 *.sh text eol=lf
+# Result files are written on Linux; keep them byte-identical on every checkout.
+results/*.csv text eol=lf
+results/*.txt text eol=lf

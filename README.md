@@ -79,9 +79,9 @@ Plots and CSVs land in `results/`.
 
 | | Development | Grading (headless) |
 |---|---|---|
-| OS | Ubuntu 22.04 / 24.04 (native or WSL2) | PACE-ICE (RHEL) |
-| Compiler | GCC 11 or newer, C++17 | GCC module on PACE-ICE |
-| Build | CMake 3.16 or newer | CMake module on PACE-ICE |
+| OS | Ubuntu 22.04 / 24.04 (native or WSL2) | PACE-ICE, RHEL 9 (kernel 5.14) |
+| Compiler | GCC 11 or newer, C++17 | GCC 12.3.0 (the PACE-ICE default, no module needed) |
+| Build | CMake 3.16 or newer | CMake 3.31.8 (PACE-ICE default) |
 | CUDA | CUDA Toolkit 12.x (Tier 2 only) | CUDA module on a PACE-ICE GPU node |
 
 Sockets use the POSIX API, so the exchange and agents build on Linux and macOS, not on native Windows. On Windows use WSL2.
@@ -95,7 +95,9 @@ Sockets use the POSIX API, so the exchange and agents build on Linux and macOS, 
 | GLEW | OpenGL function loading | https://glew.sourceforge.net/ | System package (`libglew-dev`), viewer only |
 | cuRAND | GPU random numbers | https://docs.nvidia.com/cuda/curand/ | Ships with the CUDA Toolkit |
 
-The headless build needs nothing beyond a C++17 compiler and CMake.
+The headless build needs nothing beyond a C++17 compiler and CMake. It was built and run on PACE-ICE node `atl1-1-03-011-3-0` (Intel Xeon Platinum 8462Y+); `results/environment.txt` records the exact machine, compiler and commit behind the numbers in `results/`.
+
+A lockstep run is reproducible across machines as well as across runs: the same seed gave the same market statistics, digit for digit, under GCC 11 on Ubuntu and GCC 12 on PACE-ICE.
 
 ---
 

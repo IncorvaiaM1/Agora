@@ -62,6 +62,18 @@ def mean_std(values):
     return centre, math.sqrt(sum((v - centre) ** 2 for v in values) / len(values))
 
 
+def median_range(values):
+    """Median, and how far the smallest and largest values lie below and above it.
+
+    The median is used for timings because one repeat disturbed by another job
+    on the node would drag a mean a long way.
+    """
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    median = ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2.0
+    return median, median - ordered[0], ordered[-1] - median
+
+
 def save(figure, directory, name):
     path = os.path.join(directory, name)
     figure.savefig(path, dpi=200, bbox_inches="tight")
@@ -84,8 +96,9 @@ def plot_latency(results):
     for queue, by_clients in grouped.items():
         look = series_style(queue)
         xs = sorted(by_clients)
-        stats = [mean_std([float(r["orders_per_s"]) for r in by_clients[x]]) for x in xs]
-        axis.errorbar(xs, [s[0] for s in stats], yerr=[s[1] for s in stats], color=look["color"],
+        stats = [median_range([float(r["orders_per_s"]) for r in by_clients[x]]) for x in xs]
+        axis.errorbar(xs, [s[0] for s in stats], yerr=[[s[1] for s in stats], [s[2] for s in stats]],
+                      color=look["color"],
                       marker=look["marker"], linestyle=look["linestyle"], linewidth=2, markersize=6,
                       capsize=3, label=look["label"])
     axis.set_xscale("log", base=2)
@@ -94,7 +107,7 @@ def plot_latency(results):
     axis.set_ylim(bottom=0)
     axis.set_xlabel("Connected clients", color=INK)
     axis.set_ylabel("Orders per second", color=INK)
-    axis.set_title("Exchange throughput (mean of repeats, bars show one standard deviation)",
+    axis.set_title("Exchange throughput (median of repeats, bars show the full range)",
                    color=INK, fontsize=10, loc="left")
     axis.legend(frameon=False)
     style_axes(axis)
@@ -108,8 +121,9 @@ def plot_latency(results):
         for queue, by_clients in grouped.items():
             look = series_style(queue)
             xs = sorted(by_clients)
-            stats = [mean_std([float(r[column]) for r in by_clients[x]]) for x in xs]
-            axis.errorbar(xs, [s[0] for s in stats], yerr=[s[1] for s in stats], color=look["color"],
+            stats = [median_range([float(r[column]) for r in by_clients[x]]) for x in xs]
+            axis.errorbar(xs, [s[0] for s in stats], yerr=[[s[1] for s in stats], [s[2] for s in stats]],
+                          color=look["color"],
                           marker=look["marker"], linestyle=look["linestyle"], linewidth=2, markersize=6,
                           capsize=3, label=look["label"])
         axis.set_xscale("log", base=2)
@@ -120,6 +134,7 @@ def plot_latency(results):
         axis.set_xlabel("Connected clients", color=INK)
         style_axes(axis)
     axes[0].set_ylabel("Round-trip latency (microseconds, log scale)", color=INK)
+    figure.suptitle("Median of repeats, bars show the full range", color=INK, fontsize=9, x=0.125, ha="left")
     axes[0].legend(frameon=False)
     save(figure, results, "latency_percentiles.png")
 

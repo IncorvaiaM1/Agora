@@ -118,6 +118,10 @@ class SpscChannel final : public CommandChannel
 
     std::vector<std::unique_ptr<SpscRingBuffer<InboundMessage>>> m_rings;
     std::size_t m_cursor = 0; ///< Engine thread only: where the next sweep starts (fairness).
+    /// One past the highest slot that has ever pushed. The gateway hands out the
+    /// lowest free slot first, so sweeping only this far skips the rings that
+    /// have never had a client instead of polling all of them on every pop.
+    std::atomic<std::size_t> m_highWater{0};
     std::atomic<bool> m_closed{false};
 };
 

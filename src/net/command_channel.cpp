@@ -46,6 +46,15 @@ SpscChannel::SpscChannel(std::size_t slots, std::size_t capacityPerSlot)
 bool SpscChannel::push(const InboundMessage& message)
 {
     SpscRingBuffer<InboundMessage>& ring = *m_rings[message.slot];
+
+    // Make sure the engine's sweep reaches this slot before the message lands in it.
+    std::size_t seen = m_highWater.load(std::memory_order_relaxed);
+    while (seen <= message.slot &&
+           !m_highWater.compare_exchange_weak(seen, message.slot + 1, std::memory_order_release,
+                                              std::memory_order_relaxed))
+    {
+    }
+
     int spins = 0;
     for (;;)
     {
@@ -71,7 +80,15 @@ bool SpscChannel::push(const InboundMessage& message)
 
 bool SpscChannel::sweep(InboundMessage& message) noexcept
 {
-    const std::size_t count = m_rings.size();
+    const std::size_t count = m_highWater.load(std::memory_order_acquire);
+    if (count == 0)
+    {
+        return false;
+    }
+    if (m_cursor >= count)
+    {
+        m_cursor = 0;
+    }
     for (std::size_t i = 0; i < count; ++i)
     {
         const std::size_t index = (m_cursor + i) % count;

@@ -17,7 +17,10 @@ struct ValueConfig
     Price noise = 15;              ///< Fresh per-tick observation noise, uniform in [-noise, +noise].
     Price margin = 8;              ///< Required edge: trade only if the price is this far from the estimate.
     Quantity maxQuantity = 20;     ///< Largest single order.
-    Quantity positionLimit = 2000;  ///< Stops adding to a position beyond this many shares.
+    /// Stops adding to a position beyond this many shares. Deliberately large: value
+    /// agents are the market's anchor, and if they run out of room during a long move
+    /// in the fundamental the price detaches from it and later snaps back in one jump.
+    Quantity positionLimit = 20000;
     std::uint64_t orderLifetime = 25; ///< Unfilled orders are cancelled after this many ticks.
 };
 

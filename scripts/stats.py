@@ -185,7 +185,7 @@ def main():
 
     # --- one row per market and seed ---------------------------------------
     with open(os.path.join(args.out, "stylized_facts.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["market", "seed", "bars", "return_std", "excess_kurtosis", "acf_returns_1"]
                         + ["acf_squared_%d" % lag for lag in report_lags])
         for market, seeds in results.items():
@@ -205,7 +205,7 @@ def main():
         metrics.append(("acf_squared_%d" % lag, lambda s, lag=lag: s["acf_squared"][lag - 1]))
 
     with open(os.path.join(args.out, "stylized_summary.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["market", "metric", "mean", "std", "seeds"])
         for market in results:
             for name, pick in metrics:
@@ -214,7 +214,7 @@ def main():
 
     # --- full autocorrelation curve of squared returns ------------------------
     with open(os.path.join(args.out, "acf_squared.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["market", "lag", "mean", "std"])
         for market in results:
             for lag in range(1, args.max_lag + 1):
@@ -224,7 +224,7 @@ def main():
     # --- histogram of standardized returns, pooled over seeds -----------------
     bins = int(round(2 * HIST_RANGE / HIST_BIN))
     with open(os.path.join(args.out, "returns_hist.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["market", "bin_centre", "density"])
         for market, seeds in results.items():
             counts = [0] * bins
@@ -242,7 +242,7 @@ def main():
 
     # --- one example price path per market ------------------------------------
     with open(os.path.join(args.out, "price_path.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["market", "tick", "price", "fundamental"])
         for market, (ticks, prices, fundamentals) in paths.items():
             for index in range(0, len(ticks), args.bar):
