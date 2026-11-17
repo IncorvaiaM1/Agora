@@ -42,9 +42,15 @@ First PACE-ICE run (Nov 17, commit 428d44a, node atl1-1-03-011-3-0, Xeon Platinu
 - Result 3: seeds 1, 2, 3 and 5 gave excess kurtosis 2.4 to 6.1, but seed 4 gave 953. Cause: the fundamental fell about 600 ticks, the four value agents hit their 2,000-share position limit, the price stayed about 560 ticks too high, and then fell 270 ticks in one step when the bids ran out. Fixed after this run by raising the value agents' limit to 20,000 shares. With that, a local rerun of the five seeds gives excess kurtosis 5.9 (std 3.0, range 2.8 to 11.5) and squared-return autocorrelation 0.29, 0.19, 0.07 at lags 1, 2, 5.
 - The same seed produced identical statistics on PACE-ICE (GCC 12) and on Ubuntu (GCC 11).
 
+Second PACE-ICE run (Nov 17, commit 4befb88, same node):
+
+- Result 3 is settled. Mixed market: excess kurtosis 5.9 (std 3.0 over 5 seeds, range 2.8 to 11.5); squared-return autocorrelation 0.29, 0.19, 0.07, -0.01 at lags 1, 2, 5, 10. ZI only: kurtosis 0.0; 0.10, 0.02, 0.01, 0.00. Random walk: kurtosis 0.0; all lags about 0. The PACE-ICE numbers match the local rerun to every printed digit.
+- Results 1 and 2 are not settled. SPSC improved with one client (90,781 orders/s, p50 10.8 us, against mutex 70,622 and 13.9 us) but became erratic from 4 clients up: individual repeats were either level with the mutex queue (191k at 4 clients, 249k at 16, 255k at 64) or 20 to 40 percent slower with p99 about doubled. The mutex queue was steady apart from three slow repeats.
+- Working explanation, not yet confirmed: while waiting for the next order the SPSC engine thread called `yield()`, which on a busy node gives its core away, and it is the one thread everything waits for. Changed after this run to busy-poll with a CPU pause first, and to yield and then sleep only after longer idle periods. Run 3 tests this.
+
 Left for Tier 1 (M2 on Sun Nov 22):
-1. Rerun `./scripts/pace_run.sh` on PACE-ICE with the two fixes above and commit `results/`. Ask for more cores if possible (the 64-client point runs about 130 threads on 12 cores).
-2. Put the final numbers in the README and the report.
+1. Run 3 on PACE-ICE: `./scripts/pace_run.sh --skip-stats` (latency only, a couple of minutes). Commit `results/`.
+2. If SPSC is steady, put the final numbers in the README and the report. If it is still erratic, report that honestly as the result: the wait strategy of a lock-free queue matters more than the queue.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 

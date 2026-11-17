@@ -14,14 +14,34 @@ namespace
 /// Failed pushes before a producer facing a full ring starts sleeping instead of yielding.
 constexpr int kSpinsBeforeSleep = 200;
 
-/// Empty sweeps before the idle engine thread starts sleeping. Higher than the
-/// producer's count on purpose: under steady load the next order is usually
-/// less than a millisecond away, and a sleep would add its wake-up time to
-/// that order's latency.
-constexpr int kSweepsBeforeSleep = 2000;
+// How the idle engine thread waits on the SPSC rings, in three stages:
+//
+//  1. Busy polls: keep the core and poll again after a CPU pause. Under load
+//     the next order is microseconds away, so this is where the engine waits
+//     almost all of the time. It must not call yield() here: on a busy node
+//     yield() hands the core to whichever thread is runnable, and the engine,
+//     the one thread everything else is waiting for, then queues behind it.
+//     The first PACE-ICE runs showed exactly that as runs that were randomly
+//     20 to 40 percent slower.
+//  2. Yield polls: nothing for a while, so let other threads run between polls.
+//  3. Sleep: the exchange is idle; stop burning a core.
+constexpr int kBusyPolls = 4000;
+constexpr int kYieldPolls = 2000;
+
+/// The clock is read only once per this many busy polls; reading it costs more than a poll.
+constexpr int kPollsPerClockCheck = 64;
 
 /// Sleep between polls once spinning has not paid off.
 constexpr std::chrono::microseconds kIdleSleep{50};
+
+/// Tells the CPU this is a spin-wait loop: saves power and lets a sibling
+/// hyperthread run, without giving the core back to the scheduler.
+inline void cpuRelax() noexcept
+{
+#if defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#endif
+}
 
 } // namespace
 
@@ -113,27 +133,35 @@ bool SpscChannel::pop(InboundMessage& message, std::chrono::microseconds wait)
         return false;
     }
 
-    // Nothing ready. Spin briefly (cheap, lowest latency), then sleep in short
-    // steps so an idle exchange does not burn a whole core.
+    // Nothing ready: wait in the three stages described at the top of this file.
     const auto deadline = std::chrono::steady_clock::now() + wait;
-    int spins = 0;
+    int polls = 0;
     for (;;)
     {
         if (sweep(message))
         {
             return true;
         }
+        ++polls;
+        if (polls < kBusyPolls)
+        {
+            cpuRelax();
+            if (polls % kPollsPerClockCheck != 0)
+            {
+                continue;
+            }
+        }
         if (std::chrono::steady_clock::now() >= deadline)
         {
             return false;
         }
-        if (++spins < kSweepsBeforeSleep)
-        {
-            std::this_thread::yield();
-        }
-        else
+        if (polls >= kBusyPolls + kYieldPolls)
         {
             std::this_thread::sleep_for(kIdleSleep);
+        }
+        else if (polls >= kBusyPolls)
+        {
+            std::this_thread::yield();
         }
     }
 }
