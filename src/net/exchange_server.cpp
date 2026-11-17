@@ -49,6 +49,12 @@ ExchangeServer::ExchangeServer(ExchangeConfig config)
         m_commandLog = std::make_unique<CommandLogWriter>(*m_config.commandLog);
     }
     m_fanout.add(*this);
+
+    if (m_config.tickLog != nullptr)
+    {
+        *m_config.tickLog << "tick,fundamental,bid_price,bid_quantity,ask_price,ask_quantity,last_trade_price,"
+                             "trades\n";
+    }
 }
 
 ExchangeServer::~ExchangeServer()
@@ -383,6 +389,15 @@ void ExchangeServer::publishTick()
     }
     tick.lastTradePrice = m_feed.lastTradePrice();
     m_feed.publishTick(tick);
+
+    if (m_config.tickLog != nullptr)
+    {
+        // Integers only, like the trade log, so the file is identical on every platform.
+        // The last column is the running trade count, which gives volume per tick by differencing.
+        *m_config.tickLog << tick.tick << ',' << tick.fundamental << ',' << tick.bidPrice << ','
+                          << tick.bidQuantity << ',' << tick.askPrice << ',' << tick.askQuantity << ','
+                          << tick.lastTradePrice << ',' << m_engine.stats().trades << '\n';
+    }
 }
 
 Session* ExchangeServer::sessionOf(AgentId agent)

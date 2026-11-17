@@ -24,10 +24,11 @@ Measured on Nov 16 (16 ZI agent processes, 5000 ticks, lockstep, seed 42): 48,30
 
 First look at result 3 (20,000 ticks, lockstep, seed 42, returns over 20-trade bars, quick throwaway script): the mixed market `mm:2,zi:6,value:4,trend:4` has excess kurtosis 2.5 and squared-return autocorrelation 0.16, 0.16, 0.10 at lags 1, 2, 5; 16 ZI agents alone give 1.1 and 0.15, 0.02, -0.01. So the mix shows fatter tails and volatility clustering that the baseline lacks. In the mix, market makers and value agents end with a profit and ZI and trend agents with a loss. These are one seed; `stats.py` should average over several.
 
-Left for Tier 1 (this week, M2 on Sun Nov 22):
-1. `scripts/stats.py` and `plots.py`: kurtosis and ACF of squared returns from `trades.csv` for the mix, the ZI-only market and a simulated random walk, over several seeds (result 3). Latency plots from `results/latency.csv` (results 1 and 2).
-2. Build on PACE-ICE, pin the module versions in the README, run `scripts/bench.sh` on a compute node and commit `results/latency.csv`.
-3. Optional: log the fundamental value per tick from the exchange, so the report can plot price against value.
+Scripts (Nov 17): exchange `--tick-log`, `scripts/stats.py`, `scripts/stylized_facts.sh`, `scripts/plots.py`, `scripts/pace_run.sh`. Trial run off PACE (3 seeds, 30,000 ticks, 10-tick bars): mixed market excess kurtosis 4.1 (std 1.4 over seeds), squared-return autocorrelation 0.24, 0.19, 0.08 at lags 1, 2, 5; ZI-only and random walk both about 0 kurtosis. The mixed market tracks the fundamental; the ZI market does not. One thing to state honestly in the report: mixed-market returns themselves are positively autocorrelated at lag 1 (about 0.22, from the trend followers), which real markets are not.
+
+Left for Tier 1 (M2 on Sun Nov 22):
+1. On PACE-ICE, in an interactive session on a compute node: `./scripts/pace_run.sh --quick`, then `./scripts/pace_run.sh`. Commit `results/`.
+2. Copy the node, compiler and CMake lines from `results/environment.txt` into the README environment table.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 

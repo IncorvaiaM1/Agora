@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs one market session: starts the exchange, launches N agent processes,
-# waits for the session to end and leaves the trade and command logs behind.
+# waits for the session to end and leaves the trade, command and tick logs behind.
 #
 # Usage: ./scripts/run_market.sh [--agents N | --mix SPEC] [--ticks T] [--seed S]
 #                                [--port P] [--queue spsc|mutex] [--live]
@@ -58,7 +58,7 @@ agents="${#types[@]}"
 
 mkdir -p "$out"
 exchange_args=(--port "$port" --queue "$queue" --seed "$seed" --agents "$agents" --ticks "$ticks"
-               --trades "$out/trades.csv" --commands "$out/commands.bin")
+               --trades "$out/trades.csv" --commands "$out/commands.bin" --tick-log "$out/ticks.csv")
 if [[ "$mode" == lockstep ]]; then
     exchange_args+=(--lockstep)
 else

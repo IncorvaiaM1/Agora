@@ -5,7 +5,8 @@
  * Usage:
  *   agora_exchange [--port P] [--bind ADDR] [--queue spsc|mutex] [--seed S]
  *                  [--agents N] [--ticks T] [--tick-ms M] [--lockstep]
- *                  [--trades <out.csv>] [--commands <out.bin>] [--verify]
+ *                  [--trades <out.csv>] [--commands <out.bin>] [--tick-log <out.csv>]
+ *                  [--verify]
  *
  * Live mode (default): matches orders as they arrive and publishes a Tick
  * every --tick-ms milliseconds (0 turns ticks off). Runs for --ticks ticks,
@@ -16,7 +17,8 @@
  * same agents give a byte-identical trade log on every run.
  *
  * --commands records the sequenced command stream; agora_replay turns it
- * back into the same trade log.
+ * back into the same trade log. --tick-log records the fundamental value and
+ * the best bid and ask at every tick, for the market statistics.
  */
 #include "agora/net/exchange_server.hpp"
 
@@ -47,13 +49,15 @@ struct Options
     agora::net::ExchangeConfig exchange;
     std::string tradesPath;
     std::string commandsPath;
+    std::string tickLogPath;
 };
 
 void printUsage()
 {
     std::cerr << "usage: agora_exchange [--port P] [--bind ADDR] [--queue spsc|mutex] [--seed S]\n"
                  "                      [--agents N] [--ticks T] [--tick-ms M] [--lockstep]\n"
-                 "                      [--trades <out.csv>] [--commands <out.bin>] [--verify]\n";
+                 "                      [--trades <out.csv>] [--commands <out.bin>] [--tick-log <out.csv>]\n"
+                 "                      [--verify]\n";
 }
 
 bool parse(int argc, char* argv[], Options& options)
@@ -114,6 +118,10 @@ bool parse(int argc, char* argv[], Options& options)
         {
             options.commandsPath = argv[++i];
         }
+        else if (arg == "--tick-log" && hasValue)
+        {
+            options.tickLogPath = argv[++i];
+        }
         else if (arg == "--verify")
         {
             options.exchange.checkInvariants = true;
@@ -168,6 +176,18 @@ int main(int argc, char* argv[])
                 return 1;
             }
             options.exchange.commandLog = &commandsFile;
+        }
+
+        std::ofstream tickLogFile;
+        if (!options.tickLogPath.empty())
+        {
+            tickLogFile.open(options.tickLogPath, std::ios::binary);
+            if (!tickLogFile)
+            {
+                std::cerr << "cannot write " << options.tickLogPath << '\n';
+                return 1;
+            }
+            options.exchange.tickLog = &tickLogFile;
         }
 
         agora::net::ExchangeServer server(options.exchange);

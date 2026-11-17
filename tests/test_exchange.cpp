@@ -9,6 +9,7 @@
 
 #include "doctest/doctest.h"
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <sstream>
@@ -32,6 +33,7 @@ class TestExchange
         config.gateway.port = 0;
         config.tradeLog = &trades;
         config.commandLog = &commands;
+        config.tickLog = &ticks;
         m_server = std::make_unique<ExchangeServer>(config);
         m_server->start();
         m_thread = std::thread([this] { m_server->run(); });
@@ -60,6 +62,7 @@ class TestExchange
 
     std::ostringstream trades;
     std::ostringstream commands;
+    std::ostringstream ticks;
 
   private:
     std::unique_ptr<ExchangeServer> m_server;
@@ -113,6 +116,7 @@ struct SessionResult
 {
     std::string trades;
     std::string commands;
+    std::string ticks;
     EngineStats stats;
 };
 
@@ -150,7 +154,8 @@ SessionResult runMarket(std::uint64_t seed, const std::vector<std::string>& type
     }
     exchange.join();
     exchange.engine().verify();
-    return SessionResult{exchange.trades.str(), exchange.commands.str(), exchange.engine().stats()};
+    return SessionResult{exchange.trades.str(), exchange.commands.str(), exchange.ticks.str(),
+                         exchange.engine().stats()};
 }
 
 /// Convenience overload: @p agentCount zero-intelligence agents.
@@ -349,4 +354,8 @@ TEST_CASE("exchange: a mixed market of all four strategies is deterministic in l
     CHECK(first.stats.trades > 100);
     CHECK(first.trades == second.trades);
     CHECK(replay(first.commands) == first.trades);
+
+    // The tick log is deterministic too, with a header and one line per tick.
+    CHECK(first.ticks == second.ticks);
+    CHECK(std::count(first.ticks.begin(), first.ticks.end(), '\n') == 601);
 }

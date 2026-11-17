@@ -47,6 +47,9 @@ struct ExchangeConfig
     bool checkInvariants = false;       ///< Verify book invariants and conservation after every command.
     std::ostream* tradeLog = nullptr;   ///< If set, receives the trade log CSV.
     std::ostream* commandLog = nullptr; ///< If set, receives the binary command log for agora_replay.
+    /// If set, receives one CSV line per tick: the fundamental value and the top of the
+    /// book as the agents saw them. Input to the market statistics (result 3).
+    std::ostream* tickLog = nullptr;
 };
 
 /**

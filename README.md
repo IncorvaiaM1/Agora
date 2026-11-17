@@ -10,7 +10,7 @@ The approved statement of work for this project was submitted under the working 
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Tier 1 code complete: exchange, all four agent strategies, latency benchmark. Next: market statistics script and PACE-ICE runs. See [PLAN.md](PLAN.md) |
+| Status | Tier 1 code complete: exchange, four agent strategies, latency benchmark, market statistics and plots. Next: PACE-ICE runs, then the CUDA risk engine. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -127,11 +127,16 @@ If no CUDA compiler is found, CMake prints a warning and builds without the risk
 ### PACE-ICE
 
 ```bash
-module load gcc cmake cuda        # exact module versions to be pinned once verified
-cmake -S . -B build -DAGORA_WITH_GL=OFF
+# The default compiler and CMake on PACE-ICE are new enough for Tier 1; no modules needed.
+cmake -S . -B build -DAGORA_WITH_CUDA=OFF -DAGORA_WITH_GL=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
+
+# Tier 2 only, on a GPU node:
+module load cuda
 ```
+
+`scripts/pace_run.sh` does the build, the tests and every Tier 1 experiment in one command (see Run).
 
 ## Test
 
@@ -188,7 +193,7 @@ cmp logs/a/trades.csv replayed.csv && echo identical
 
 `agora_agent --type` is one of `zi`, `value`, `trend`, `mm`.
 
-`agora_exchange` options: `--port`, `--bind` (default `127.0.0.1`; use `0.0.0.0` for agents on other nodes), `--queue spsc|mutex`, `--seed`, `--agents N` (wait for N agents before the first tick), `--ticks T`, `--tick-ms M` (live mode; 0 turns ticks off), `--lockstep`, `--trades`, `--commands`, `--verify`.
+`agora_exchange` options: `--port`, `--bind` (default `127.0.0.1`; use `0.0.0.0` for agents on other nodes), `--queue spsc|mutex`, `--seed`, `--agents N` (wait for N agents before the first tick), `--ticks T`, `--tick-ms M` (live mode; 0 turns ticks off), `--lockstep`, `--trades`, `--commands`, `--tick-log`, `--verify`.
 
 Live mode matches orders in arrival order, which depends on the OS scheduler, so two live runs differ. Lockstep mode buffers each tick's orders until every agent has answered, then matches them in a seeded order, so runs are reproducible.
 
@@ -205,6 +210,28 @@ kill -INT %1
 ```
 
 Each benchmark client sends limit orders and times the round trip from sending an order to reading its acknowledgement. `--window W` sets how many orders a client keeps in flight: 1 (the default) gives clean latency numbers, larger values give peak throughput. Run the sweep on a quiet machine; on PACE-ICE use a compute node, not a login node.
+
+### Market statistics (result 3)
+
+```bash
+# Mixed market and zero-intelligence market, 5 seeds each, then the statistics
+./scripts/stylized_facts.sh
+
+# Figures for every result that has data in results/ (needs matplotlib)
+python3 scripts/plots.py
+```
+
+`stylized_facts.sh` runs each market in lockstep mode with `--tick-log`, then `scripts/stats.py` (standard library only) computes excess kurtosis and the autocorrelation of squared returns against a simulated random walk. Raw logs go to `logs/result3/`; the summary CSVs and figures go to `results/`.
+
+### Everything on PACE-ICE
+
+```bash
+# From an interactive session on a compute node, in the repo root
+./scripts/pace_run.sh --quick     # about a minute: checks the build and the scripts
+./scripts/pace_run.sh             # full run: build, tests, latency sweep, statistics, figures
+```
+
+It also writes `results/environment.txt` (node, CPU, compiler and CMake versions, commit).
 
 ### Viewer and risk engine (planned)
 
