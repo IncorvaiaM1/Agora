@@ -92,6 +92,20 @@ add_library(agora_agents STATIC
 target_link_libraries(agora_agents PUBLIC agora_net PRIVATE agora_warnings)
 
 # ---------------------------------------------------------------------------
+# Risk library (Tier 2): Black-Scholes, the CPU reference path generator, the
+# Monte Carlo pricer, tail-risk measures and the live risk monitor. Plain C++,
+# always built, so the reference results and their tests run on any machine.
+# The CUDA path generator is added to it further down when CUDA is available.
+# ---------------------------------------------------------------------------
+add_library(agora_risk STATIC
+    src/risk/black_scholes.cpp
+    src/risk/path_generator.cpp
+    src/risk/option_pricer.cpp
+    src/risk/risk_metrics.cpp
+    src/risk/risk_monitor.cpp)
+target_link_libraries(agora_risk PUBLIC agora_net PRIVATE agora_warnings)
+
+# ---------------------------------------------------------------------------
 # Programs
 # ---------------------------------------------------------------------------
 add_executable(agora_replay apps/replay_main.cpp)
@@ -109,6 +123,10 @@ target_link_libraries(agora_agent PRIVATE agora_agents agora_warnings)
 add_executable(agora_bench_latency apps/bench_latency.cpp)
 target_link_libraries(agora_bench_latency PRIVATE agora_net agora_warnings)
 
+add_executable(agora_risk_engine apps/risk_main.cpp)
+set_target_properties(agora_risk_engine PROPERTIES OUTPUT_NAME agora_risk)
+target_link_libraries(agora_risk_engine PRIVATE agora_risk agora_warnings)
+
 # ---------------------------------------------------------------------------
 # Optional tiers. Targets are added as the code lands (see PLAN.md).
 # ---------------------------------------------------------------------------
@@ -118,8 +136,36 @@ if(AGORA_WITH_CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
         message(STATUS "Agora: CUDA risk engine enabled")
+
+        # The GPU path generator. It is not linked to agora_warnings: those
+        # flags are tuned for our own C++ and would turn warnings inside the
+        # CUDA headers into errors.
+        add_library(agora_risk_cuda STATIC src/risk/cuda_path_generator.cu)
+        set_target_properties(agora_risk_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+
+        # GPU generations to compile for. The default covers the GPUs on
+        # PACE-ICE (V100, RTX 6000, A100, L40S, H100/H200); the last entry also
+        # embeds PTX so newer GPUs can compile it at load time. CUDA 13 dropped
+        # Volta (sm_70). Override with -DAGORA_CUDA_ARCHITECTURES="90", or "native".
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+            set(_agora_default_archs "75-real;80-real;89-real;90")
+        else()
+            set(_agora_default_archs "70-real;75-real;80-real;89-real;90")
+        endif()
+        set(AGORA_CUDA_ARCHITECTURES "${_agora_default_archs}" CACHE STRING "CUDA architectures for the risk engine")
+        set_target_properties(agora_risk_cuda PROPERTIES CUDA_ARCHITECTURES "${AGORA_CUDA_ARCHITECTURES}")
+
+        # The kernels use cuRAND's device API, which is header only; only the
+        # CUDA runtime library has to be linked. Statically, so the programs
+        # start without `module load cuda` and the CPU parts run on any node.
+        find_package(CUDAToolkit REQUIRED)
+        target_link_libraries(agora_risk_cuda PUBLIC CUDA::cudart_static)
+        target_include_directories(agora_risk_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        # Everything that links the CUDA generator also learns that it exists.
+        target_compile_definitions(agora_risk_cuda PUBLIC AGORA_HAS_CUDA=1)
+        target_link_libraries(agora_risk_engine PRIVATE agora_risk_cuda)
     else()
-        message(WARNING "Agora: no CUDA compiler found, building without the risk engine")
+        message(WARNING "Agora: no CUDA compiler found, building the risk engine without its GPU path generator")
         set(AGORA_WITH_CUDA OFF)
     endif()
 endif()
@@ -142,8 +188,13 @@ if(AGORA_BUILD_TESTS)
         tests/test_protocol.cpp
         tests/test_queues.cpp
         tests/test_agents.cpp
+        tests/test_risk.cpp
         tests/test_exchange.cpp)
     target_include_directories(agora_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    target_link_libraries(agora_tests PRIVATE agora_agents agora_warnings)
+    target_link_libraries(agora_tests PRIVATE agora_agents agora_risk agora_warnings)
+    if(TARGET agora_risk_cuda)
+        # Runs the GPU generator through the same checks as the CPU one.
+        target_link_libraries(agora_tests PRIVATE agora_risk_cuda)
+    endif()
     add_test(NAME agora_tests COMMAND agora_tests)
 endif()

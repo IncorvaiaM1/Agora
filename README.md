@@ -10,7 +10,7 @@ The approved statement of work for this project was submitted under the working 
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Tier 1 code complete: exchange, four agent strategies, latency benchmark, market statistics and plots. Next: PACE-ICE runs, then the CUDA risk engine. See [PLAN.md](PLAN.md) |
+| Status | Tier 1 done with PACE-ICE results. Tier 2 (risk engine) code complete and tested on the CPU; GPU run on PACE-ICE next. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -57,7 +57,9 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 | `ValueAgent` | Trades toward a noisy estimate of the fundamental value | done |
 | `TrendAgent` | Moving-average crossover momentum trader (integer arithmetic) | done |
 | `MarketMakerAgent` | Two-sided quotes with inventory skew | done |
-| `PathGenerator`, `OptionPricer` | CUDA Monte Carlo engine with CPU reference | planned |
+| `PathGenerator` (`CpuPathGenerator`, `CudaPathGenerator`) | Exact geometric Brownian motion samples; one-thread CPU reference and cuRAND GPU version behind one interface | done |
+| `OptionPricer` | Monte Carlo European option price with standard error | done |
+| `RiskMonitor` | Live market data to realized volatility, option prices, per-agent VaR and expected shortfall | done |
 | `DepthRenderer` | OpenGL heatmap | planned |
 
 ## Measurable results
@@ -161,6 +163,7 @@ If no CUDA compiler is found, CMake prints a warning and builds without the risk
 | `AGORA_WITH_GL` | ON | Build the OpenGL viewer |
 | `AGORA_BUILD_TESTS` | ON | Build the unit tests |
 | `AGORA_WERROR` | ON | Treat warnings as errors |
+| `AGORA_CUDA_ARCHITECTURES` | V100 to H100 | GPU generations to compile for, e.g. `90` for H100 only |
 
 ### PACE-ICE
 
@@ -271,11 +274,28 @@ python3 scripts/plots.py
 
 It also writes `results/environment.txt` (node, CPU, compiler and CMake versions, commit).
 
-### Viewer and risk engine (planned)
+### Risk engine (result 4)
 
 ```bash
-./build/agora_viewer --host 127.0.0.1 --port 9000      # optional live viewer
-./build/agora_risk --host 127.0.0.1 --port 9000        # optional live risk engine
+# Convergence and speedup: call and put priced for N = 1e4 ... 1e8 paths, 8 seeds each,
+# on the CPU and, in a CUDA build on a GPU node, on the GPU. Every estimate is compared
+# with Black-Scholes.
+./build/agora_risk convergence --out results/convergence.csv
+
+# Live: a mixed market with the risk engine attached as a read-only observer
+./scripts/run_market.sh --mix "mm:2,zi:6,value:4,trend:4" --ticks 20000 --risk cuda   # or --risk cpu
+
+# Everything for Tier 2 on PACE-ICE, from an interactive session on a GPU node
+./scripts/pace_run.sh --gpu --quick     # check the setup first
+./scripts/pace_run.sh --gpu
+```
+
+The live engine estimates volatility from the prices it sees, prices an at-the-money call and put by Monte Carlo next to their Black-Scholes values, and computes every agent's 99% value at risk and expected shortfall over the next 1,000 ticks, next to the closed-form values. Without a GPU, or in a build without CUDA, everything runs on the CPU; the GPU test case is skipped with a message rather than failing.
+
+### Viewer (planned)
+
+```bash
+./build/agora_viewer --host 127.0.0.1 --port 9000
 ```
 
 ---
@@ -289,8 +309,8 @@ src/io/          command log (binary, for replay) and trade log (CSV)
 include/agora/queue/  SPSC ring buffer and mutex queue (header-only templates)
 src/net/         binary protocol, sockets, Session, Gateway, market data feed, exchange server
 src/agents/      Agent base class, runner and strategies
-apps/            command line programs: agora_exchange, agora_agent, agora_bench_latency, agora_replay, agora_engine_bench
-src/risk/        CUDA risk engine and CPU reference                    (planned)
+apps/            command line programs: agora_exchange, agora_agent, agora_risk, agora_bench_latency, agora_replay, agora_engine_bench
+src/risk/        risk engine: Black-Scholes, CPU and CUDA path generators, pricer, VaR/ES, live monitor
 src/viewer/      OpenGL depth viewer                                   (planned)
 tests/           doctest unit tests
 scripts/         run, benchmark, statistics, plotting and packaging scripts

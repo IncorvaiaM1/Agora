@@ -6,6 +6,8 @@
     stylized_returns.png      result 3: distribution of returns against the normal curve
     stylized_acf.png          result 3: autocorrelation of squared returns
     price_path.png            result 3: price against the fundamental value, one seed
+    risk_convergence.png      result 4: Monte Carlo error vs paths, and run time vs paths (CPU and GPU)
+    risk_live.png             result 4: live option price and value at risk, simulated vs closed form
 
 A figure is skipped, with a message, if its input file is missing, so this can
 be run after only some of the experiments. Needs matplotlib.
@@ -31,6 +33,8 @@ STYLE = {
     "mixed": {"color": "#2a78d6", "marker": "o", "linestyle": "-", "label": "Mixed agents"},
     "zero_intelligence": {"color": "#eb6834", "marker": "s", "linestyle": "--", "label": "Zero intelligence only"},
     "random_walk": {"color": "#1baf7a", "marker": "^", "linestyle": ":", "label": "Random walk"},
+    "cpu": {"color": "#eb6834", "marker": "s", "linestyle": "--", "label": "CPU, one thread"},
+    "cuda": {"color": "#2a78d6", "marker": "o", "linestyle": "-", "label": "GPU (CUDA)"},
 }
 INK = "#2b2b2a"
 MUTED = "#8a8980"
@@ -222,6 +226,110 @@ def plot_price(results):
     save(figure, results, "price_path.png")
 
 
+def plot_convergence(results):
+    path = os.path.join(results, "convergence.csv")
+    if not os.path.isfile(path):
+        print("skipping convergence figure: no " + path)
+        return
+    rows = read_rows(path)
+    # backend -> option -> paths -> list of rows (one per seed)
+    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    devices = {}
+    for row in rows:
+        grouped[row["backend"]][row["option"]][int(row["paths"])].append(row)
+        devices[row["backend"]] = row["device"]
+
+    figure, (left, right) = plt.subplots(1, 2, figsize=(11.0, 4.0))
+
+    # Left: root-mean-square error over seeds, against paths. The call only, so
+    # the panel stays readable; the put behaves the same (see the CSV).
+    for backend, by_option in grouped.items():
+        look = series_style(backend)
+        by_paths = by_option["call"]
+        xs = sorted(by_paths)
+        rms = [math.sqrt(sum(float(r["error"]) ** 2 for r in by_paths[x]) / len(by_paths[x])) for x in xs]
+        left.plot(xs, rms, color=look["color"], marker=look["marker"], linestyle="none", markersize=7,
+                  label=look["label"] + " (RMS error over seeds)")
+    # Reference: the mean reported standard error, which falls exactly as 1/sqrt(N).
+    reference = next(iter(grouped.values()))["call"]
+    xs = sorted(reference)
+    standard = [sum(float(r["std_error"]) for r in reference[x]) / len(reference[x]) for x in xs]
+    left.plot(xs, standard, color=MUTED, linewidth=1.5, label="Reported standard error, slope -1/2")
+    left.set_xscale("log")
+    left.set_yscale("log")
+    left.set_xlabel("Simulated paths N", color=INK)
+    left.set_ylabel("Error vs Black-Scholes (log scale)", color=INK)
+    left.set_title("European call: error falls as 1/sqrt(N)", color=INK, fontsize=10, loc="left")
+    left.legend(frameon=False, fontsize=8)
+    style_axes(left)
+
+    # Right: median run time per estimate, against paths, both options pooled.
+    medians = {}
+    for backend, by_option in grouped.items():
+        look = series_style(backend)
+        pooled = defaultdict(list)
+        for by_paths in by_option.values():
+            for paths, entries in by_paths.items():
+                pooled[paths].extend(float(r["seconds"]) for r in entries)
+        xs = sorted(pooled)
+        ys = [median_range(pooled[x])[0] for x in xs]
+        medians[backend] = dict(zip(xs, ys))
+        right.plot(xs, ys, color=look["color"], marker=look["marker"], linestyle=look["linestyle"], linewidth=2,
+                   markersize=6, label=look["label"] if backend == "cpu" else "%s: %s" % (look["label"], devices[backend]))
+    right.set_xscale("log")
+    right.set_yscale("log")
+    right.set_xlabel("Simulated paths N", color=INK)
+    right.set_ylabel("Median time per estimate (s, log scale)", color=INK)
+    right.set_title("Run time; the gap between the lines is the GPU speedup", color=INK, fontsize=10, loc="left")
+    right.legend(frameon=False, fontsize=8)
+    style_axes(right)
+    save(figure, results, "risk_convergence.png")
+
+    if "cpu" in medians and "cuda" in medians:
+        print("GPU speedup over one CPU thread (median time per estimate):")
+        for paths in sorted(set(medians["cpu"]) & set(medians["cuda"])):
+            print("  N = %-11d cpu %10.5f s   gpu %10.5f s   speedup %8.1fx"
+                  % (paths, medians["cpu"][paths], medians["cuda"][paths], medians["cpu"][paths] / medians["cuda"][paths]))
+
+
+def plot_risk_live(results):
+    path = os.path.join(results, "risk_live.csv")
+    if not os.path.isfile(path):
+        print("skipping live risk figure: no " + path)
+        return
+    rows = read_rows(path)
+    ticks = [int(r["tick"]) for r in rows]
+
+    figure, (left, right) = plt.subplots(1, 2, figsize=(11.0, 4.0), sharex=True)
+    cpu_look, gpu_look = STYLE["cpu"], STYLE["cuda"]
+
+    call = [float(r["call_mc"]) for r in rows]
+    band = [2.0 * float(r["call_std_error"]) for r in rows]
+    left.plot(ticks, [float(r["call_exact"]) for r in rows], color=MUTED, linewidth=1.5, label="Black-Scholes")
+    left.errorbar(ticks, call, yerr=band, color=gpu_look["color"], marker="o", linestyle="none", markersize=5,
+                  capsize=3, label="Monte Carlo, 2 standard errors")
+    left.set_xlabel("Simulation tick", color=INK)
+    left.set_ylabel("Price (ticks)", color=INK)
+    left.set_title("At-the-money call on the live market", color=INK, fontsize=10, loc="left")
+    left.legend(frameon=False, fontsize=8)
+    style_axes(left)
+
+    right.plot(ticks, [float(r["var_exact"]) for r in rows], color=MUTED, linewidth=1.5,
+               label="99% VaR, closed form")
+    right.plot(ticks, [float(r["var_mc"]) for r in rows], color=gpu_look["color"], marker="o", linestyle="none",
+               markersize=5, label="99% VaR, simulated")
+    right.plot(ticks, [float(r["es_exact"]) for r in rows], color=MUTED, linewidth=1.5, linestyle="--",
+               label="99% expected shortfall, closed form")
+    right.plot(ticks, [float(r["es_mc"]) for r in rows], color=cpu_look["color"], marker="s", linestyle="none",
+               markersize=5, label="99% expected shortfall, simulated")
+    right.set_xlabel("Simulation tick", color=INK)
+    right.set_ylabel("Loss per share held (ticks)", color=INK)
+    right.set_title("Tail risk of one share over the next 1,000 ticks", color=INK, fontsize=10, loc="left")
+    right.legend(frameon=False, fontsize=8)
+    style_axes(right)
+    save(figure, results, "risk_live.png")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results", default="results", help="directory with the CSV files; figures go here too")
@@ -231,6 +339,8 @@ def main():
     plot_returns(args.results)
     plot_acf(args.results)
     plot_price(args.results)
+    plot_convergence(args.results)
+    plot_risk_live(args.results)
 
 
 if __name__ == "__main__":

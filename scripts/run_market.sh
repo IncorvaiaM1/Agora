@@ -5,6 +5,10 @@
 # Usage: ./scripts/run_market.sh [--agents N | --mix SPEC] [--ticks T] [--seed S]
 #                                [--port P] [--queue spsc|mutex] [--live]
 #                                [--tick-ms M] [--out DIR] [--build DIR]
+#                                [--risk cpu|cuda] [--risk-every K]
+#
+# --risk B     Also run the live risk engine (agora_risk live) on backend B as a
+#              read-only observer. It writes DIR/risk.csv and DIR/risk_agents.csv.
 #
 # --agents N   N zero-intelligence agents (the random-walk-like baseline).
 # --mix SPEC   A mix of strategies, e.g. --mix "mm:2,zi:6,value:4,trend:4".
@@ -24,6 +28,8 @@ mode=lockstep
 tick_ms=1
 out=logs
 build=build
+risk=""
+risk_every=1000
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,6 +43,8 @@ while [[ $# -gt 0 ]]; do
         --out)     out="$2";     shift 2 ;;
         --build)   build="$2";   shift 2 ;;
         --live)    mode=live;    shift ;;
+        --risk)    risk="$2";    shift 2 ;;
+        --risk-every) risk_every="$2"; shift 2 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -78,6 +86,15 @@ for _ in $(seq 1 100); do
     sleep 0.05
 done
 
+# The risk engine connects before the agents, so it sees the market from the first tick.
+risk_pid=""
+if [[ -n "$risk" ]]; then
+    "$build/agora_risk" live --backend "$risk" --port "$port" --every "$risk_every" \
+        --out "$out/risk.csv" --agents-out "$out/risk_agents.csv" > "$out/risk.txt" &
+    risk_pid=$!
+    sleep 0.2
+fi
+
 agent_pids=()
 for id in $(seq 1 "$agents"); do
     "$build/agora_agent" --type "${types[$((id - 1))]}" --id "$id" --seed "$seed" --port "$port" &
@@ -89,6 +106,10 @@ for pid in "${agent_pids[@]}"; do
     wait "$pid" || status=1
 done
 wait "$exchange_pid" || status=1
+if [[ -n "$risk_pid" ]]; then
+    wait "$risk_pid" || status=1
+    echo "risk engine: $out/risk.csv, $out/risk_agents.csv (log in $out/risk.txt)"
+fi
 trap - EXIT
 
 echo "trade log: $out/trades.csv ($(($(wc -l < "$out/trades.csv") - 1)) trades)"

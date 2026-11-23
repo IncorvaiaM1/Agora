@@ -52,7 +52,13 @@ Third PACE-ICE run (Nov 17, same node, with the busy-poll change): the explanati
 
 **Tier 1 is complete (Nov 17), five days ahead of M2.** Results 1, 2, 3 and 6 have CSVs, figures and a README write-up.
 
-Next: Tier 2, the CUDA risk engine (was planned for Nov 23 to 29). CPU reference pricer first, then the cuRAND path generator, convergence against Black-Scholes, speedup, realized volatility from the tick log, VaR/ES.
+Tier 2 code (Nov 17): `PathGenerator` with `CpuPathGenerator` (one thread, the reference) and `CudaPathGenerator` (cuRAND Philox, one stream per GPU thread, each thread sums its own payoffs so memory does not grow with N); `OptionPricer`; Black-Scholes; realized volatility; simulated and closed-form VaR/ES; `RiskMonitor`; `agora_risk convergence` and `agora_risk live`; `--risk` in `run_market.sh`; `scripts/risk_run.sh`; `pace_run.sh --gpu`; two new figures. Paths are sampled exactly from the lognormal law (no time stepping), so the only error is Monte Carlo noise.
+
+Checked so far, without a GPU: 64 test cases pass (GCC 11). CPU convergence to 1e7 paths: every estimate within 1.96 standard errors of Black-Scholes; error falls as 1/sqrt(N). Live run on a 16-agent mixed market: option prices within error bars of Black-Scholes at every report, simulated VaR/ES within about 1% of the closed form. The CUDA file compiles cleanly for sm_90 (CUDA 13.5, -Wall -Wextra; 56 registers, no spills), and the whole CMake build with CUDA enabled builds and links under GCC 13 with warnings as errors. The CUDA runtime is linked statically, so programs start without `module load cuda`. Not yet run on a GPU.
+
+Left for Tier 2 (M3 on Sun Nov 29):
+1. On a PACE-ICE GPU node: `./scripts/pace_run.sh --gpu --quick`, then `./scripts/pace_run.sh --gpu`. Commit `results/`. This gives the speedup and the GPU half of result 4.
+2. Write up result 4 in the README.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 
