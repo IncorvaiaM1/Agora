@@ -1,29 +1,29 @@
 NVIDIA H100 80GB HBM3, 615.71.09, 81559 MiB
-date:     2026-11-23 23:16 UTC
+date:     2026-11-23 23:26 UTC
 host:     atl1-1-03-010-25-0.pace.gatech.edu
 gpu:      NVIDIA H100 80GB HBM3, 615.71.09
 cpu:      Intel(R) Xeon(R) Platinum 8462Y+
 compiler: c++ (Spack GCC) 12.3.0
 nvcc:     Build cuda_12.9.r12.9/compiler.36037853_0
 cmake:    cmake version 3.31.8
-commit:   701687c
+commit:   43a0112
 == build with CUDA (no OpenGL) ==
 -- Agora: CUDA risk engine enabled
 -- Configuring done (0.1s)
--- Generating done (0.9s)
+-- Generating done (1.0s)
 -- Build files have been written to: /home/hice1/mincorvaia3/scratch/Agora/build-cuda
+[  3%] Built target agora_risk_cuda
 [ 12%] Built target agora_core
-[ 12%] Built target agora_risk_cuda
 [ 18%] Built target agora_io
-[ 21%] Built target agora_replay
-[ 34%] Built target agora_engine_bench
+[ 23%] Built target agora_replay
+[ 25%] Built target agora_engine_bench
 [ 41%] Built target agora_net
-[ 69%] Built target agora_exchange
-[ 70%] Built target agora_agents
-[ 70%] Built target agora_bench_latency
+[ 45%] Built target agora_bench_latency
+[ 63%] Built target agora_agents
+[ 65%] Built target agora_exchange
 [ 72%] Built target agora_risk
+[ 76%] Built target agora_agent
 [ 80%] Built target agora_risk_engine
-[ 81%] Built target agora_agent
 [100%] Built target agora_tests
 == unit tests (including the GPU generator) ==
 [doctest] doctest version is "2.4.11"
@@ -38,4 +38,66 @@ TEST CASE:  risk: CUDA path generator passes the same checks as the CPU one
 [doctest] test cases:      64 |      64 passed | 0 failed | 0 skipped
 [doctest] assertions: 1213025 | 1213025 passed | 0 failed |
 [doctest] Status: SUCCESS!
-./scripts/pace_run.sh: line 71: ./scripts/risk_run.sh: Permission denied
+== convergence and speedup (result 4) ==
+backend cpu (single thread)
+  call  paths      10000  exact 8.02135  rms error 0.091018  mean std error 0.131855  median time 0.00030 s
+  call  paths     100000  exact 8.02135  rms error 0.027121  mean std error 0.041715  median time 0.00305 s
+  call  paths    1000000  exact 8.02135  rms error 0.011289  mean std error 0.013207  median time 0.03042 s
+  call  paths   10000000  exact 8.02135  rms error 0.003672  mean std error 0.004172  median time 0.30411 s
+  call  paths  100000000  exact 8.02135  rms error 0.001204  mean std error 0.001319  median time 3.04091 s
+   put  paths      10000  exact 7.90044  rms error 0.091369  mean std error 0.103642  median time 0.00031 s
+   put  paths     100000  exact 7.90044  rms error 0.032359  mean std error 0.032747  median time 0.00304 s
+   put  paths    1000000  exact 7.90044  rms error 0.006903  mean std error 0.010359  median time 0.03045 s
+   put  paths   10000000  exact 7.90044  rms error 0.003956  mean std error 0.003276  median time 0.30428 s
+   put  paths  100000000  exact 7.90044  rms error 0.000967  mean std error 0.001036  median time 3.04268 s
+backend cuda (NVIDIA H100 80GB HBM3)
+  call  paths      10000  exact 8.02135  rms error 0.131641  mean std error 0.132238  median time 0.00239 s
+  call  paths     100000  exact 8.02135  rms error 0.021569  mean std error 0.041692  median time 0.00239 s
+  call  paths    1000000  exact 8.02135  rms error 0.007909  mean std error 0.013193  median time 0.00309 s
+  call  paths   10000000  exact 8.02135  rms error 0.004744  mean std error 0.004172  median time 0.00317 s
+  call  paths  100000000  exact 8.02135  rms error 0.000968  mean std error 0.001319  median time 0.00320 s
+   put  paths      10000  exact 7.90044  rms error 0.085626  mean std error 0.103605  median time 0.00239 s
+   put  paths     100000  exact 7.90044  rms error 0.035295  mean std error 0.032732  median time 0.00240 s
+   put  paths    1000000  exact 7.90044  rms error 0.009166  mean std error 0.010360  median time 0.00291 s
+   put  paths   10000000  exact 7.90044  rms error 0.002020  mean std error 0.003276  median time 0.00310 s
+   put  paths  100000000  exact 7.90044  rms error 0.000941  mean std error 0.001036  median time 0.00284 s
+160 estimates, largest |error| / std error = 2.04, 0 beyond 3 (expected by chance: about 0.4)
+wrote results/convergence.csv
+== live risk engine on a mixed market (cuda) ==
+risk engine: logs/risk_live/risk.csv, logs/risk_live/risk_agents.csv (log in logs/risk_live/risk.txt)
+trade log: logs/risk_live/trades.csv (59044 trades)
+tick   18000  spot 10157.5  vol/tick 0.000146  call 41.89 (exact 41.74)  VaR/share 108.81  ES/share 124.39
+tick   19000  spot 10227.0  vol/tick 0.000144  call 41.81 (exact 41.61)  VaR/share 108.12  ES/share 123.64
+tick   20000  spot 10244.0  vol/tick 0.000142  call 41.17 (exact 41.14)  VaR/share 107.39  ES/share 122.54
+final positions at tick 20000 (99% value at risk and expected shortfall over 1000 ticks, in price ticks)
+  agent   1  position     243  VaR      26015.4 (exact 25961.2)  ES 29783.8 (exact 29714.1)
+  agent   2  position     247  VaR      26443.7 (exact 26388.5)  ES 30274.1 (exact 30203.2)
+  agent   3  position   -1489  VaR     160041.1 (exact 160443.0)  ES 184031.4 (exact 183992.2)
+  agent   4  position    -891  VaR      95766.7 (exact 96007.2)  ES 110122.2 (exact 110098.7)
+  agent   5  position    -850  VaR      91359.9 (exact 91589.3)  ES 105054.9 (exact 105032.5)
+  agent   6  position   -1336  VaR     143596.3 (exact 143956.9)  ES 165121.6 (exact 165086.3)
+  agent   7  position    -518  VaR      55675.8 (exact 55815.6)  ES 64021.7 (exact 64008.0)
+  agent   8  position    -889  VaR      95551.8 (exact 95791.7)  ES 109875.0 (exact 109851.6)
+  agent   9  position    -650  VaR      69863.5 (exact 70038.9)  ES 80336.1 (exact 80318.9)
+  agent  10  position    7255  VaR     776715.5 (exact 775095.5)  ES 889223.7 (exact 887142.5)
+  agent  11  position   -2489  VaR     267523.4 (exact 268195.1)  ES 307625.4 (exact 307559.8)
+  agent  12  position    1734  VaR     185640.9 (exact 185253.7)  ES 212531.2 (exact 212033.8)
+  agent  13  position      29  VaR       3104.7 (exact 3098.2)  ES 3554.4 (exact 3546.1)
+  agent  14  position    -100  VaR      10748.2 (exact 10775.2)  ES 12359.4 (exact 12356.8)
+  agent  15  position    -150  VaR      16122.3 (exact 16162.8)  ES 18539.1 (exact 18535.1)
+  agent  16  position    -146  VaR      15692.4 (exact 15731.8)  ES 18044.7 (exact 18040.9)
+== figures ==
+wrote results/latency_throughput.png
+wrote results/latency_percentiles.png
+wrote results/stylized_returns.png
+wrote results/stylized_acf.png
+wrote results/price_path.png
+wrote results/risk_convergence.png
+GPU speedup over one CPU thread (median time per estimate):
+  N = 10000       cpu    0.00031 s   gpu    0.00239 s   speedup      0.1x
+  N = 100000      cpu    0.00304 s   gpu    0.00239 s   speedup      1.3x
+  N = 1000000     cpu    0.03042 s   gpu    0.00295 s   speedup     10.3x
+  N = 10000000    cpu    0.30426 s   gpu    0.00297 s   speedup    102.5x
+  N = 100000000   cpu    3.04178 s   gpu    0.00306 s   speedup    994.5x
+wrote results/risk_live.png
+done. Commit the results/ folder.

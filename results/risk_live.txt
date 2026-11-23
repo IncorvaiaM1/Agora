@@ -1,0 +1,38 @@
+agora_risk: cuda (NVIDIA H100 80GB HBM3), 200000 paths per estimate, report every 1000 ticks
+tick    1000  spot 10014.0  vol/tick 0.000171  call 48.44 (exact 48.40)  VaR/share 125.42  ES/share 143.53
+tick    2000  spot 10076.5  vol/tick 0.000147  call 42.04 (exact 41.86)  VaR/share 109.35  ES/share 125.37
+tick    3000  spot 10141.0  vol/tick 0.000143  call 40.75 (exact 40.78)  VaR/share 106.32  ES/share 121.07
+tick    4000  spot 10201.0  vol/tick 0.000145  call 41.84 (exact 41.80)  VaR/share 109.12  ES/share 125.36
+tick    5000  spot 10113.0  vol/tick 0.000143  call 41.16 (exact 40.77)  VaR/share 105.48  ES/share 121.08
+tick    6000  spot 10027.5  vol/tick 0.000136  call 38.77 (exact 38.61)  VaR/share 100.52  ES/share 114.88
+tick    7000  spot 10081.0  vol/tick 0.000138  call 39.21 (exact 39.26)  VaR/share 101.67  ES/share 116.54
+tick    8000  spot 10099.5  vol/tick 0.000143  call 40.74 (exact 40.77)  VaR/share 105.91  ES/share 121.23
+tick    9000  spot 10112.5  vol/tick 0.000142  call 40.53 (exact 40.45)  VaR/share 105.60  ES/share 120.28
+tick   10000  spot 10090.0  vol/tick 0.000142  call 40.40 (exact 40.50)  VaR/share 105.19  ES/share 119.93
+tick   11000  spot 10105.5  vol/tick 0.000141  call 40.26 (exact 40.17)  VaR/share 104.77  ES/share 120.00
+tick   12000  spot 10141.0  vol/tick 0.000143  call 41.24 (exact 40.99)  VaR/share 105.90  ES/share 121.48
+tick   13000  spot 10162.5  vol/tick 0.000150  call 43.06 (exact 42.86)  VaR/share 111.11  ES/share 127.03
+tick   14000  spot 10099.5  vol/tick 0.000147  call 41.92 (exact 42.00)  VaR/share 109.06  ES/share 124.51
+tick   15000  spot 10129.5  vol/tick 0.000147  call 41.85 (exact 41.92)  VaR/share 109.16  ES/share 124.74
+tick   16000  spot 10197.5  vol/tick 0.000146  call 41.87 (exact 41.87)  VaR/share 108.70  ES/share 124.35
+tick   17000  spot 10243.0  vol/tick 0.000146  call 42.15 (exact 42.14)  VaR/share 108.78  ES/share 124.54
+tick   18000  spot 10157.5  vol/tick 0.000146  call 41.89 (exact 41.74)  VaR/share 108.81  ES/share 124.39
+tick   19000  spot 10227.0  vol/tick 0.000144  call 41.81 (exact 41.61)  VaR/share 108.12  ES/share 123.64
+tick   20000  spot 10244.0  vol/tick 0.000142  call 41.17 (exact 41.14)  VaR/share 107.39  ES/share 122.54
+final positions at tick 20000 (99% value at risk and expected shortfall over 1000 ticks, in price ticks)
+  agent   1  position     243  VaR      26015.4 (exact 25961.2)  ES 29783.8 (exact 29714.1)
+  agent   2  position     247  VaR      26443.7 (exact 26388.5)  ES 30274.1 (exact 30203.2)
+  agent   3  position   -1489  VaR     160041.1 (exact 160443.0)  ES 184031.4 (exact 183992.2)
+  agent   4  position    -891  VaR      95766.7 (exact 96007.2)  ES 110122.2 (exact 110098.7)
+  agent   5  position    -850  VaR      91359.9 (exact 91589.3)  ES 105054.9 (exact 105032.5)
+  agent   6  position   -1336  VaR     143596.3 (exact 143956.9)  ES 165121.6 (exact 165086.3)
+  agent   7  position    -518  VaR      55675.8 (exact 55815.6)  ES 64021.7 (exact 64008.0)
+  agent   8  position    -889  VaR      95551.8 (exact 95791.7)  ES 109875.0 (exact 109851.6)
+  agent   9  position    -650  VaR      69863.5 (exact 70038.9)  ES 80336.1 (exact 80318.9)
+  agent  10  position    7255  VaR     776715.5 (exact 775095.5)  ES 889223.7 (exact 887142.5)
+  agent  11  position   -2489  VaR     267523.4 (exact 268195.1)  ES 307625.4 (exact 307559.8)
+  agent  12  position    1734  VaR     185640.9 (exact 185253.7)  ES 212531.2 (exact 212033.8)
+  agent  13  position      29  VaR       3104.7 (exact 3098.2)  ES 3554.4 (exact 3546.1)
+  agent  14  position    -100  VaR      10748.2 (exact 10775.2)  ES 12359.4 (exact 12356.8)
+  agent  15  position    -150  VaR      16122.3 (exact 16162.8)  ES 18539.1 (exact 18535.1)
+  agent  16  position    -146  VaR      15692.4 (exact 15731.8)  ES 18044.7 (exact 18040.9)
