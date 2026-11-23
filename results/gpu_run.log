@@ -1,0 +1,41 @@
+NVIDIA H100 80GB HBM3, 615.71.09, 81559 MiB
+date:     2026-11-23 23:16 UTC
+host:     atl1-1-03-010-25-0.pace.gatech.edu
+gpu:      NVIDIA H100 80GB HBM3, 615.71.09
+cpu:      Intel(R) Xeon(R) Platinum 8462Y+
+compiler: c++ (Spack GCC) 12.3.0
+nvcc:     Build cuda_12.9.r12.9/compiler.36037853_0
+cmake:    cmake version 3.31.8
+commit:   701687c
+== build with CUDA (no OpenGL) ==
+-- Agora: CUDA risk engine enabled
+-- Configuring done (0.1s)
+-- Generating done (0.9s)
+-- Build files have been written to: /home/hice1/mincorvaia3/scratch/Agora/build-cuda
+[ 12%] Built target agora_core
+[ 12%] Built target agora_risk_cuda
+[ 18%] Built target agora_io
+[ 21%] Built target agora_replay
+[ 34%] Built target agora_engine_bench
+[ 41%] Built target agora_net
+[ 69%] Built target agora_exchange
+[ 70%] Built target agora_agents
+[ 70%] Built target agora_bench_latency
+[ 72%] Built target agora_risk
+[ 80%] Built target agora_risk_engine
+[ 81%] Built target agora_agent
+[100%] Built target agora_tests
+== unit tests (including the GPU generator) ==
+[doctest] doctest version is "2.4.11"
+[doctest] run with "--help" for options
+===============================================================================
+/home/hice1/mincorvaia3/scratch/Agora/tests/test_risk.cpp:305:
+TEST CASE:  risk: CUDA path generator passes the same checks as the CPU one
+
+/home/hice1/mincorvaia3/scratch/Agora/tests/test_risk.cpp:315: MESSAGE: GPU: NVIDIA H100 80GB HBM3
+
+===============================================================================
+[doctest] test cases:      64 |      64 passed | 0 failed | 0 skipped
+[doctest] assertions: 1213025 | 1213025 passed | 0 failed |
+[doctest] Status: SUCCESS!
+./scripts/pace_run.sh: line 71: ./scripts/risk_run.sh: Permission denied
