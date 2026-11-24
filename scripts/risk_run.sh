@@ -3,7 +3,7 @@
 # the live risk engine watching a mixed market.
 #
 # Usage: ./scripts/risk_run.sh [--build DIR] [--max-paths N] [--seeds S] [--backend cpu|cuda]
-#                              [--ticks T] [--port P]
+#                              [--ticks T] [--port P] [--skip-convergence]
 #
 # Run it on a GPU node with a CUDA build (scripts/pace_run.sh --gpu does both).
 # Without a GPU it still runs, on the CPU only.
@@ -18,6 +18,7 @@ seeds=8
 backend=cuda
 ticks=20000
 port=9500
+convergence=1
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -27,6 +28,7 @@ while [[ $# -gt 0 ]]; do
         --backend)   backend="$2";   shift 2 ;;
         --ticks)     ticks="$2";     shift 2 ;;
         --port)      port="$2";      shift 2 ;;
+        --skip-convergence) convergence=0; shift ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -34,9 +36,11 @@ done
 cd "$(dirname "$0")/.."
 mkdir -p results
 
-echo "== convergence and speedup (result 4) =="
-"$build/agora_risk" convergence --min-paths 1e4 --max-paths "$max_paths" --seeds "$seeds" \
-    --out results/convergence.csv
+if [[ "$convergence" == 1 ]]; then
+    echo "== convergence and speedup (result 4) =="
+    "$build/agora_risk" convergence --min-paths 1e4 --max-paths "$max_paths" --seeds "$seeds" \
+        --out results/convergence.csv
+fi
 
 # Fall back to the CPU for the live run if this build or node has no GPU.
 if [[ "$backend" == cuda ]] && ! grep -q '^cuda,' results/convergence.csv; then

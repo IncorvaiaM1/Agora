@@ -92,7 +92,15 @@ if [[ -n "$risk" ]]; then
     "$build/agora_risk" live --backend "$risk" --port "$port" --every "$risk_every" \
         --out "$out/risk.csv" --agents-out "$out/risk_agents.csv" > "$out/risk.txt" &
     risk_pid=$!
-    sleep 0.2
+    # Start the agents only once the risk engine is connected: in lockstep mode the
+    # market starts as soon as the last agent arrives, and a monitor that is still
+    # setting up its GPU would miss the opening ticks and trades.
+    for _ in $(seq 1 600); do
+        grep -q "connected" "$out/risk.txt" 2> /dev/null && break
+        kill -0 "$risk_pid" 2> /dev/null || { echo "risk engine exited early:" >&2; cat "$out/risk.txt" >&2; exit 1; }
+        sleep 0.1
+    done
+    grep -q "connected" "$out/risk.txt" || { echo "risk engine did not connect within 60 s" >&2; exit 1; }
 fi
 
 agent_pids=()

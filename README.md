@@ -10,7 +10,7 @@ The approved statement of work for this project was submitted under the working 
 |---|---|
 | Student | Michael Incorvaia (individual project, no team) |
 | Special topics | Sockets, `std::thread` (core); CUDA (risk engine); OpenGL (viewer) |
-| Status | Tier 1 done with PACE-ICE results. Tier 2 (risk engine) code complete and tested on the CPU; GPU run on PACE-ICE next. See [PLAN.md](PLAN.md) |
+| Status | Tiers 1 and 2 done with PACE-ICE results (H100 for the GPU). Next: the OpenGL viewer (Tier 3), then the report and video. See [PLAN.md](PLAN.md) |
 
 ---
 
@@ -75,7 +75,7 @@ The project is built in three tiers. Tier 1 (exchange + agents) is a complete pr
 
 Plots and CSVs land in `results/`.
 
-### Results so far (Tier 1)
+### Results
 
 Measured on PACE-ICE node `atl1-1-03-011-3-0` (Intel Xeon Platinum 8462Y+, 12 cores in the session, GCC 12.3.0); details in `results/environment.txt`. Everything below is reproduced by `./scripts/pace_run.sh`.
 
@@ -109,6 +109,25 @@ Figures: `results/latency_throughput.png`, `results/latency_percentiles.png`.
 
 Figures: `results/stylized_returns.png`, `results/stylized_acf.png`, `results/price_path.png`.
 
+**Result 4: Monte Carlo risk engine.** A European call and put (spot 100, strike 105, rate 5%, volatility 20%, one year) priced by Monte Carlo for N = 10^4 to 10^8 paths, 8 seeds each, on one CPU thread and on an NVIDIA H100 (PACE-ICE node `atl1-1-03-010-25-0`, CUDA 12.9; `results/environment_gpu.txt`).
+
+- Accuracy: all 160 estimates (2 options x 5 path counts x 8 seeds x 2 backends) agree with Black-Scholes within their own error bars. 116 lie within one standard error and 158 within two (about 109 and 152 expected by chance); the largest deviation is 2.04 standard errors and none exceeds 3.
+- Convergence: the RMS error of the call falls from 0.09 at 10^4 paths to 0.001 at 10^8, a factor of about 95 for 10^4 times the paths, against 100 for an exact 1/sqrt(N) law.
+- Speed (median time per estimate):
+
+  | Paths | One CPU thread | H100 | Speedup |
+  |---|---|---|---|
+  | 10^4 | 0.31 ms | 2.39 ms | 0.1x |
+  | 10^5 | 3.04 ms | 2.39 ms | 1.3x |
+  | 10^6 | 30.4 ms | 2.95 ms | 10x |
+  | 10^7 | 304 ms | 2.97 ms | 102x |
+  | 10^8 | 3.04 s | 3.06 ms | 994x |
+
+  The CPU time grows exactly linearly with N (about 33 million paths per second). The GPU time is almost flat: up to 10^7 paths it is dominated by a fixed cost per call (allocating and freeing device memory, launching the kernel and copying back one partial sum per thread), not by the simulation. The fastest GPU call at 10^4 paths took 0.38 ms, so most of the 2.4 ms median is that set-up, not something inherent; reusing device buffers between calls would cut it. Below about 10^5 paths the single CPU thread is faster.
+- Live: the risk engine follows a 16-agent mixed market as a read-only observer. Every 1,000 ticks it estimates volatility from the prices so far, prices an at-the-money call and put, and computes 99% value at risk and expected shortfall over the next 1,000 ticks for one share and for every agent's position. The Monte Carlo option prices stay within two standard errors of Black-Scholes and the simulated VaR and expected shortfall within about 1% of the closed form throughout.
+
+Figures: `results/risk_convergence.png`, `results/risk_live.png`.
+
 **Result 6: correctness.** The book invariants and volume conservation are checked after every command in the tests and in `agora_replay --verify`. Two lockstep runs with the same seed give byte-identical trade logs, with either queue. The command log of any run, live ones included, replays to the same trade log. The same seeds gave the same statistics, digit for digit, under GCC 11 on Ubuntu and GCC 12 on PACE-ICE.
 
 ---
@@ -120,7 +139,7 @@ Figures: `results/stylized_returns.png`, `results/stylized_acf.png`, `results/pr
 | OS | Ubuntu 22.04 / 24.04 (native or WSL2) | PACE-ICE, RHEL 9 (kernel 5.14) |
 | Compiler | GCC 11 or newer, C++17 | GCC 12.3.0 (the PACE-ICE default, no module needed) |
 | Build | CMake 3.16 or newer | CMake 3.31.8 (PACE-ICE default) |
-| CUDA | CUDA Toolkit 12.x (Tier 2 only) | CUDA module on a PACE-ICE GPU node |
+| CUDA | CUDA Toolkit 12.x (Tier 2 only) | CUDA 12.9 (`module load cuda`) on a PACE-ICE GPU node; tested on an H100 |
 
 Sockets use the POSIX API, so the exchange and agents build on Linux and macOS, not on native Windows. On Windows use WSL2.
 

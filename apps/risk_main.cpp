@@ -355,26 +355,28 @@ int runLive(const Options& options)
     connection.send(hello);
     connection.flush();
 
-    std::cout << "agora_risk: " << backend.generator->name() << " (" << backend.device << "), " << options.paths
-              << " paths per estimate, report every " << options.every << " ticks\n"
+    // Wait for the handshake before saying we are connected. run_market.sh waits
+    // for this line before it starts the agents, so the monitor never misses the
+    // start of the market (setting up a GPU can take longer than the agents take
+    // to connect).
+    agora::net::ServerMessage message;
+    if (!connection.receive(message) || !std::holds_alternative<agora::net::Welcome>(message) ||
+        std::get<agora::net::Welcome>(message).status != agora::net::WelcomeStatus::Ok)
+    {
+        throw std::runtime_error("exchange refused the connection");
+    }
+    std::cout << "agora_risk: connected; " << backend.generator->name() << " (" << backend.device << "), "
+              << options.paths << " paths per estimate, report every " << options.every << " ticks" << std::endl
               << std::fixed;
 
     bool running = true;
-    agora::net::ServerMessage message;
     while (running && connection.receive(message))
     {
         std::visit(
             [&](const auto& received)
             {
                 using Message = std::decay_t<decltype(received)>;
-                if constexpr (std::is_same_v<Message, agora::net::Welcome>)
-                {
-                    if (received.status != agora::net::WelcomeStatus::Ok)
-                    {
-                        throw std::runtime_error("exchange refused the connection");
-                    }
-                }
-                else if constexpr (std::is_same_v<Message, agora::net::Tick>)
+                if constexpr (std::is_same_v<Message, agora::net::Tick>)
                 {
                     monitor.onTick(received);
                     if (received.tick % options.every == 0)

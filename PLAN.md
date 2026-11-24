@@ -56,9 +56,15 @@ Tier 2 code (Nov 17): `PathGenerator` with `CpuPathGenerator` (one thread, the r
 
 Checked so far, without a GPU: 64 test cases pass (GCC 11). CPU convergence to 1e7 paths: every estimate within 1.96 standard errors of Black-Scholes; error falls as 1/sqrt(N). Live run on a 16-agent mixed market: option prices within error bars of Black-Scholes at every report, simulated VaR/ES within about 1% of the closed form. The CUDA file compiles cleanly for sm_90 (CUDA 13.5, -Wall -Wextra; 56 registers, no spills), and the whole CMake build with CUDA enabled builds and links under GCC 13 with warnings as errors. The CUDA runtime is linked statically, so programs start without `module load cuda`. Not yet run on a GPU.
 
-Left for Tier 2 (M3 on Sun Nov 29):
-1. On a PACE-ICE GPU node: `./scripts/pace_run.sh --gpu --quick`, then `./scripts/pace_run.sh --gpu`. Commit `results/`. This gives the speedup and the GPU half of result 4.
-2. Write up result 4 in the README.
+GPU run on PACE-ICE (Nov 23, H100 80GB, CUDA 12.9, node atl1-1-03-010-25-0): the CUDA build and all 64 tests passed, including the GPU generator. Convergence: all 160 estimates within 2.04 standard errors of Black-Scholes. Speedup over one CPU thread: 0.1x at 1e4 paths, 1.3x at 1e5, 10x at 1e6, 102x at 1e7, 994x at 1e8. GPU time is nearly flat (2.4 to 3.1 ms) because a fixed per-call cost dominates; noted in the README rather than tuned. Written up in the README under Results.
+
+One bug found from that run: the live risk engine set up the GPU before connecting, so on the H100 it joined the market late, missed the opening trades and reported positions offset by a constant (for example 243 instead of 203 shares). Fixed: `agora_risk` prints "connected" after the handshake and `run_market.sh` starts the agents only after that line. Verified with an artificial 2-second start-up delay. The live files from that run (`results/risk_live.*`, `results/risk_agents.csv`) must be regenerated.
+
+**Tier 2 is complete (Nov 23), six days ahead of M3,** apart from regenerating the live risk files.
+
+Left:
+1. On a PACE-ICE GPU node: `module load cuda && cmake --build build-cuda -j && ./scripts/risk_run.sh --skip-convergence && python3 scripts/plots.py`, then commit `results/`.
+2. Tier 3, the OpenGL viewer: decide on Wed Dec 2 whether to keep or cut it. Then the LaTeX report and the video; code freeze Sat Dec 5.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 
