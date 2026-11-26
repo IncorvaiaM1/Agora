@@ -60,11 +60,13 @@ GPU run on PACE-ICE (Nov 23, H100 80GB, CUDA 12.9, node atl1-1-03-010-25-0): the
 
 One bug found from that run: the live risk engine set up the GPU before connecting, so on the H100 it joined the market late, missed the opening trades and reported positions offset by a constant (for example 243 instead of 203 shares). Fixed: `agora_risk` prints "connected" after the handshake and `run_market.sh` starts the agents only after that line. Verified with an artificial 2-second start-up delay. The live files from that run (`results/risk_live.*`, `results/risk_agents.csv`) must be regenerated.
 
-**Tier 2 is complete (Nov 23), six days ahead of M3,** apart from regenerating the live risk files.
+Live rerun on the H100 (Nov 23, commit 8d89792) with the fix: positions and the volatility path are identical to a CPU run of the same market on another machine; 38 of 40 option prices within two standard errors of Black-Scholes (largest 2.87); one-share VaR and ES within 0.6% and 0.9% of the closed form, agent VaR within 0.25%.
+
+**Tier 2 is complete (Nov 23), six days ahead of M3.** Results 1, 2, 3, 4 and 6 now have data, figures and a README write-up; only result 5 (viewer frame rate) is left.
 
 Left:
-1. On a PACE-ICE GPU node: `module load cuda && cmake --build build-cuda -j && ./scripts/risk_run.sh --skip-convergence && python3 scripts/plots.py`, then commit `results/`.
-2. Tier 3, the OpenGL viewer: decide on Wed Dec 2 whether to keep or cut it. Then the LaTeX report and the video; code freeze Sat Dec 5.
+1. Tier 3, the OpenGL viewer. Keep-or-cut decision on Wed Dec 2.
+2. LaTeX report and video; code freeze Sat Dec 5; submit Mon Dec 7.
 
 Still open from section 2: confirm what the submitted SOW says (name, result 6 wording). Result 6 as originally worded ("two runs with the same seed produce byte-identical trade logs") now holds in lockstep mode, which is the default of `run_market.sh`.
 
